@@ -1,0 +1,6 @@
+# Memory files (voice calibration + performance stats)
+# Gitignored because they contain personal/channel-specific data
+memory/
+
+# Brainstorming visual companion session files
+.superpowers/
