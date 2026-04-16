@@ -57,3 +57,75 @@ def test_append_correction(project_root: Path):
     line = json.loads(jsonl_path.read_text().strip())
     assert line["action"] == "rejected"
     assert line["dayner_note"] == "nao era retake, era enfase"
+
+
+import sys
+from unittest.mock import patch
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+# Add backend to path so imports work
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+@pytest.fixture
+def app(project_root: Path):
+    """Create FastAPI app with mocked project root."""
+    with patch("services.get_project_root", return_value=project_root):
+        with patch("server.get_project_root", return_value=project_root):
+            from server import app as fastapi_app
+            yield fastapi_app
+
+
+@pytest.fixture
+async def client(app):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_get_project(client):
+    resp = await client.get("/api/project/test-video")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["slug"] == "test-video"
+    assert data["has_face_clean"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_cuts(client):
+    resp = await client.get("/api/cuts/test-video")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 4
+    assert data[0]["cut_type"] in ("retake", "gap", "filler")
+
+
+@pytest.mark.asyncio
+async def test_save_cuts(client):
+    resp = await client.get("/api/cuts/test-video")
+    cuts = resp.json()
+    cuts[0]["status"] = "approved"
+
+    resp = await client.post("/api/cuts/test-video/save", json={"cuts": cuts})
+    assert resp.status_code == 200
+    assert resp.json()["saved"] == 1
+
+
+@pytest.mark.asyncio
+async def test_post_correction(client):
+    correction = {
+        "video_slug": "test-video",
+        "date": "2026-04-16",
+        "cut_type": "retake",
+        "time_in": 3.2,
+        "time_out": 5.8,
+        "claude_reason": "retake: repeated word",
+        "transcript_context": "basicamente basicamente",
+        "action": "rejected",
+        "dayner_note": "era enfase",
+    }
+    resp = await client.post("/api/corrections/test-video", json=correction)
+    assert resp.status_code == 200
