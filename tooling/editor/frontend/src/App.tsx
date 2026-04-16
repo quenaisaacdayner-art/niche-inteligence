@@ -35,7 +35,7 @@ export default function App() {
 
   if (!slug) {
     return (
-      <div className="flex items-center justify-center h-screen bg-editor-bg text-editor-textMuted">
+      <div className="flex items-center justify-center h-screen bg-editor-bg text-editor-muted">
         Carregando...
       </div>
     );

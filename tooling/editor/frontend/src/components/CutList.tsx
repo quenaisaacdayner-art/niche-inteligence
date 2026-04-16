@@ -17,9 +17,9 @@ const TYPE_LABEL: Record<Cut["cut_type"], string> = {
 };
 
 const STATUS_BADGE: Record<Cut["status"], { icon: string; color: string; label: string }> = {
-  pending: { icon: "◦", color: "text-editor-textMuted", label: "pendente" },
+  pending: { icon: "◦", color: "text-editor-muted", label: "pendente" },
   approved: { icon: "✓", color: "text-cut-approved", label: "aprovado" },
-  rejected: { icon: "✗", color: "text-editor-textDim", label: "rejeitado" },
+  rejected: { icon: "✗", color: "text-editor-dim", label: "rejeitado" },
   adjusted: { icon: "~", color: "text-cut-adjusted", label: "ajustado" },
 };
 
@@ -74,7 +74,7 @@ export default function CutList() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 p-2 border-b border-editor-borderMuted">
+      <div className="flex gap-1 p-2 border-b border-editor-divider">
         {FILTERS.map((f) => {
           const isActive = filterStatus === f.key;
           return (
@@ -84,7 +84,7 @@ export default function CutList() {
               className={`flex-1 px-2 h-7 rounded text-[11px] transition-colors ${
                 isActive
                   ? "bg-accent text-white"
-                  : "text-editor-textMuted hover:bg-editor-elevated hover:text-editor-text"
+                  : "text-editor-muted hover:bg-editor-elevated hover:text-editor-text"
               }`}
             >
               {f.label} <span className="opacity-60">{counts[f.key]}</span>
@@ -96,7 +96,7 @@ export default function CutList() {
       {/* Cut list */}
       <div ref={listRef} className="flex-1 overflow-y-auto p-1.5 space-y-1">
         {visibleCuts.length === 0 && (
-          <div className="text-center text-editor-textMuted text-[11px] p-6">
+          <div className="text-center text-editor-muted text-[11px] p-6">
             {filterStatus === "all"
               ? "Nenhum corte ainda. Tecla S cria um corte manual no playhead."
               : `Nenhum corte ${filterStatus === "pending" ? "pendente" : "rejeitado"}.`}
@@ -117,7 +117,7 @@ export default function CutList() {
               className={`group relative rounded px-2.5 py-2 cursor-pointer transition-colors border ${
                 isSelected
                   ? "bg-accent-muted border-accent"
-                  : "bg-editor-bg border-editor-borderMuted hover:border-editor-border hover:bg-editor-elevated"
+                  : "bg-editor-bg border-editor-divider hover:border-editor-border hover:bg-editor-elevated"
               }`}
               onClick={() => {
                 selectCut(cut.id);
@@ -131,17 +131,17 @@ export default function CutList() {
                 <span className="text-editor-text text-[11px] font-medium">
                   {TYPE_LABEL[cut.cut_type]}
                 </span>
-                <span className="text-editor-textMuted text-[10px] font-mono ml-auto">
+                <span className="text-editor-muted text-[10px] font-mono ml-auto">
                   {formatTime(effectiveIn)}–{formatTime(effectiveOut)}
                 </span>
-                <span className="text-editor-textDim text-[10px] font-mono">
+                <span className="text-editor-dim text-[10px] font-mono">
                   {durationMs}s
                 </span>
               </div>
 
               {/* Bottom row: reason + status */}
               <div className="flex items-start gap-2">
-                <span className="text-editor-textMuted text-[10px] flex-1 line-clamp-2">
+                <span className="text-editor-muted text-[10px] flex-1 line-clamp-2">
                   {cut.reason || "—"}
                 </span>
                 <span className={`text-[11px] ${status.color}`} title={status.label}>
@@ -151,7 +151,7 @@ export default function CutList() {
 
               {/* Note (if any) */}
               {cut.dayner_note && (
-                <div className="mt-1 text-[10px] italic text-editor-textDim border-l-2 border-editor-border pl-2 line-clamp-1">
+                <div className="mt-1 text-[10px] italic text-editor-dim border-l-2 border-editor-border pl-2 line-clamp-1">
                   "{cut.dayner_note}"
                 </div>
               )}

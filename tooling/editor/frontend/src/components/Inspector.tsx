@@ -51,10 +51,10 @@ export default function Inspector() {
       <div className="flex flex-col h-full bg-editor-panel border-l border-editor-border">
         <div className="panel-header">Inspector</div>
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
-          <div className="text-editor-textMuted text-[12px]">
+          <div className="text-editor-muted text-[12px]">
             Nenhum corte selecionado
           </div>
-          <div className="text-editor-textDim text-[10px]">
+          <div className="text-editor-dim text-[10px]">
             Clica num corte na lista ou na timeline pra ver detalhes
           </div>
         </div>
@@ -166,12 +166,12 @@ export default function Inspector() {
       <div className="panel-header">Inspector</div>
 
       {/* Cut header */}
-      <div className="p-3 border-b border-editor-borderMuted space-y-2">
+      <div className="p-3 border-b border-editor-divider space-y-2">
         <div className="flex items-center gap-2">
           <span className={`text-[11px] font-semibold uppercase tracking-wide ${TYPE_COLOR[selectedCut.cut_type]}`}>
             {TYPE_LABEL[selectedCut.cut_type]}
           </span>
-          <span className="ml-auto text-[9px] text-editor-textDim uppercase tracking-wider">
+          <span className="ml-auto text-[9px] text-editor-dim uppercase tracking-wider">
             {selectedCut.status}
           </span>
         </div>
@@ -179,15 +179,15 @@ export default function Inspector() {
         {/* Time range */}
         <div className="bg-editor-bg rounded p-2 space-y-1">
           <div className="flex justify-between text-[10px]">
-            <span className="text-editor-textMuted">Inicio</span>
+            <span className="text-editor-muted">Inicio</span>
             <span className="text-editor-text font-mono">{formatTime(effectiveIn)}</span>
           </div>
           <div className="flex justify-between text-[10px]">
-            <span className="text-editor-textMuted">Fim</span>
+            <span className="text-editor-muted">Fim</span>
             <span className="text-editor-text font-mono">{formatTime(effectiveOut)}</span>
           </div>
-          <div className="flex justify-between text-[10px] pt-1 border-t border-editor-borderMuted">
-            <span className="text-editor-textMuted">Duracao</span>
+          <div className="flex justify-between text-[10px] pt-1 border-t border-editor-divider">
+            <span className="text-editor-muted">Duracao</span>
             <span className="text-accent font-mono">{spanDuration}s</span>
           </div>
         </div>
@@ -203,8 +203,8 @@ export default function Inspector() {
 
       {/* Reason / confidence */}
       {!isManual && (
-        <div className="p-3 border-b border-editor-borderMuted space-y-2">
-          <div className="text-[10px] uppercase tracking-wide text-editor-textMuted">
+        <div className="p-3 border-b border-editor-divider space-y-2">
+          <div className="text-[10px] uppercase tracking-wide text-editor-muted">
             Razao do Claude
           </div>
           <div className="text-[11px] text-editor-text leading-relaxed">
@@ -212,7 +212,7 @@ export default function Inspector() {
           </div>
           {selectedCut.confidence < 1 && (
             <div className="flex items-center gap-2">
-              <span className="text-[9px] text-editor-textMuted uppercase tracking-wide">
+              <span className="text-[9px] text-editor-muted uppercase tracking-wide">
                 Confianca
               </span>
               <div className="flex-1 h-1 bg-editor-elevated rounded-full overflow-hidden">
@@ -230,7 +230,7 @@ export default function Inspector() {
       )}
 
       {/* Actions */}
-      <div className="p-3 border-b border-editor-borderMuted space-y-2">
+      <div className="p-3 border-b border-editor-divider space-y-2">
         {!isManual && (
           <>
             <div className="flex gap-2">
@@ -249,14 +249,14 @@ export default function Inspector() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-wide text-editor-textMuted">
+              <label className="text-[9px] uppercase tracking-wide text-editor-muted">
                 Nota (opcional)
               </label>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="por que? vira input pro proximo video"
-                className="w-full h-16 px-2 py-1.5 bg-editor-bg border border-editor-borderMuted rounded text-[10px] text-editor-text placeholder:text-editor-textDim focus:border-accent resize-none"
+                className="w-full h-16 px-2 py-1.5 bg-editor-bg border border-editor-divider rounded text-[10px] text-editor-text placeholder:text-editor-dim focus:border-accent resize-none"
                 onKeyDown={(e) => e.stopPropagation()}
               />
             </div>
@@ -275,14 +275,14 @@ export default function Inspector() {
 
       {/* Escape hatch */}
       <div className="p-3 mt-auto border-t border-editor-border space-y-1">
-        <div className="text-[9px] uppercase tracking-wide text-editor-textMuted">
+        <div className="text-[9px] uppercase tracking-wide text-editor-muted">
           Algo diferente?
         </div>
         <textarea
           value={escapeText}
           onChange={(e) => setEscapeText(e.target.value)}
           placeholder="e.g. 'refaz retakes entre 2-3min com janela de 60s'"
-          className="w-full h-14 px-2 py-1.5 bg-editor-bg border border-dashed border-editor-border rounded text-[10px] text-editor-text placeholder:text-editor-textDim focus:border-accent resize-none"
+          className="w-full h-14 px-2 py-1.5 bg-editor-bg border border-dashed border-editor-border rounded text-[10px] text-editor-text placeholder:text-editor-dim focus:border-accent resize-none"
           onKeyDown={(e) => {
             if (e.key === "Enter" && e.ctrlKey) handleEscape();
             e.stopPropagation();

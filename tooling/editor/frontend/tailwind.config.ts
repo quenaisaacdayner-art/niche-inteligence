@@ -7,14 +7,14 @@ export default {
       colors: {
         // App chrome — dark navy (CapCut-inspired)
         editor: {
-          bg: "#15161a",           // app background
-          panel: "#1e1f25",        // panel surfaces (cut list, inspector, timeline)
-          elevated: "#252630",     // elevated surfaces (dropdowns, tooltips, hover)
-          border: "#2a2b35",       // panel separators
-          borderMuted: "#1f2029",  // subtle dividers within a panel
-          text: "#e4e4e7",         // primary text
-          textMuted: "#8b8b9e",    // secondary text (timestamps, labels)
-          textDim: "#5a5b6b",      // tertiary (disabled, hints)
+          bg: "#15161a",        // app background
+          panel: "#1e1f25",     // panel surfaces (cut list, inspector, timeline)
+          elevated: "#252630",  // elevated surfaces (dropdowns, tooltips, hover)
+          border: "#2a2b35",    // panel separators
+          divider: "#1f2029",   // subtle dividers within a panel
+          text: "#e4e4e7",      // primary text
+          muted: "#8b8b9e",     // secondary text (timestamps, labels)
+          dim: "#5a5b6b",       // tertiary (disabled, hints)
         },
         // Accent — teal/cyan (active, selection, focus)
         accent: {

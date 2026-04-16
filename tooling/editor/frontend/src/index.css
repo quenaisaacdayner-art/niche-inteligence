@@ -64,10 +64,10 @@ video {
 /* Utility class for panel headers (CapCut tabs look) */
 @layer components {
   .panel-header {
-    @apply flex items-center px-3 h-9 border-b border-editor-border bg-editor-panel text-editor-textMuted text-[11px] uppercase tracking-wider;
+    @apply flex items-center px-3 h-9 border-b border-editor-border bg-editor-panel text-editor-muted text-[11px] uppercase tracking-wider;
   }
   .icon-btn {
-    @apply inline-flex items-center justify-center w-7 h-7 rounded text-editor-textMuted hover:text-editor-text hover:bg-editor-elevated transition-colors disabled:opacity-30 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center w-7 h-7 rounded text-editor-muted hover:text-editor-text hover:bg-editor-elevated transition-colors disabled:opacity-30 disabled:cursor-not-allowed;
   }
   .accent-btn {
     @apply inline-flex items-center gap-1.5 px-3 h-7 rounded bg-accent text-white text-[11px] font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed;

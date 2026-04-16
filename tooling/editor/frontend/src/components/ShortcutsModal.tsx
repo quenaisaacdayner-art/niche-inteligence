@@ -72,7 +72,7 @@ export default function ShortcutsModal() {
         <div className="p-5 space-y-5">
           {SHORTCUTS.map((group) => (
             <div key={group.group}>
-              <div className="text-[10px] uppercase tracking-wider text-editor-textMuted mb-2">
+              <div className="text-[10px] uppercase tracking-wider text-editor-muted mb-2">
                 {group.group}
               </div>
               <div className="space-y-1">

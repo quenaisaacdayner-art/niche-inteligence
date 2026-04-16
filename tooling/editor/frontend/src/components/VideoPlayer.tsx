@@ -158,9 +158,9 @@ export default function VideoPlayer() {
       {/* Transport bar */}
       <div className="flex items-center justify-between px-4 h-11 bg-editor-panel border-t border-editor-border">
         {/* Left: timecode + virtual cut info */}
-        <div className="flex items-center gap-3 text-editor-textMuted text-[11px] font-mono">
+        <div className="flex items-center gap-3 text-editor-muted text-[11px] font-mono">
           <span className="text-editor-text">{formatTime(currentTime)}</span>
-          <span className="text-editor-textDim">/</span>
+          <span className="text-editor-dim">/</span>
           <span>{formatTime(duration)}</span>
           {skipList.length > 0 && (
             <span className="text-accent ml-2">
@@ -203,7 +203,7 @@ export default function VideoPlayer() {
               className={`inline-flex items-center justify-center w-10 h-6 text-[10px] rounded transition-colors ${
                 playbackRate === r
                   ? "bg-accent text-white"
-                  : "text-editor-textMuted hover:bg-editor-elevated hover:text-editor-text"
+                  : "text-editor-muted hover:bg-editor-elevated hover:text-editor-text"
               }`}
               title={`Velocidade ${r}x (${i + 1})`}
             >

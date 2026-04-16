@@ -79,9 +79,9 @@ export default function Header() {
         <span className="text-accent text-[13px] font-semibold tracking-wide">
           ✂ Editor
         </span>
-        <span className="text-editor-textDim">/</span>
+        <span className="text-editor-dim">/</span>
         <span className="text-editor-text text-[12px] font-medium">{slug || "..."}</span>
-        <span className="px-2 py-0.5 rounded bg-editor-elevated text-editor-textMuted text-[10px] uppercase tracking-wider">
+        <span className="px-2 py-0.5 rounded bg-editor-elevated text-editor-muted text-[10px] uppercase tracking-wider">
           video-cut
         </span>
       </div>
@@ -89,7 +89,7 @@ export default function Header() {
       {/* Center: status counters */}
       <div className="flex items-center gap-4 mx-auto text-[11px]">
         <StatusCounter icon="✓" value={approvedCount} label="aprovados" color="text-cut-approved" />
-        <StatusCounter icon="✗" value={rejectedCount} label="rejeitados" color="text-editor-textDim" />
+        <StatusCounter icon="✗" value={rejectedCount} label="rejeitados" color="text-editor-dim" />
         <StatusCounter icon="◦" value={pendingCount} label="pendentes" color="text-cut-gap" />
       </div>
 
@@ -157,7 +157,7 @@ function StatusCounter({
     <span className={`flex items-center gap-1.5 ${color}`}>
       <span className="text-[13px]">{icon}</span>
       <span className="font-mono text-editor-text">{value}</span>
-      <span className="text-editor-textMuted">{label}</span>
+      <span className="text-editor-muted">{label}</span>
     </span>
   );
 }

@@ -180,7 +180,7 @@ export default function Timeline() {
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-2 text-editor-textMuted text-[10px]">
+        <div className="flex items-center gap-2 text-editor-muted text-[10px]">
           <span>Zoom</span>
           <input
             type="range"
@@ -197,12 +197,12 @@ export default function Timeline() {
       {/* Timeline body */}
       <div className="flex flex-1 min-h-0" onWheel={handleWheel}>
         {/* Track labels column */}
-        <div className="flex-shrink-0 w-20 flex flex-col border-r border-editor-border text-[10px] text-editor-textMuted bg-editor-panel">
-          <div className="h-6 border-b border-editor-borderMuted" />
-          <div className="h-10 flex items-center justify-end pr-2 text-track-face border-b border-editor-borderMuted">
+        <div className="flex-shrink-0 w-20 flex flex-col border-r border-editor-border text-[10px] text-editor-muted bg-editor-panel">
+          <div className="h-6 border-b border-editor-divider" />
+          <div className="h-10 flex items-center justify-end pr-2 text-track-face border-b border-editor-divider">
             Face
           </div>
-          <div className="h-10 flex items-center justify-end pr-2 text-track-screen border-b border-editor-borderMuted">
+          <div className="h-10 flex items-center justify-end pr-2 text-track-screen border-b border-editor-divider">
             Screen
           </div>
           <div className="h-12 flex items-center justify-end pr-2 text-track-audio">
@@ -215,7 +215,7 @@ export default function Timeline() {
           <div style={{ width: totalWidth, position: "relative" }}>
             {/* Time ruler */}
             <div
-              className="h-6 border-b border-editor-borderMuted relative overflow-hidden bg-editor-panel cursor-pointer"
+              className="h-6 border-b border-editor-divider relative overflow-hidden bg-editor-panel cursor-pointer"
               onClick={handleTrackClick}
             >
               {marks.map((t) => (
@@ -225,7 +225,7 @@ export default function Timeline() {
                   style={{ left: timeToX(t) }}
                 >
                   <div className="w-px h-2 bg-editor-textDim" />
-                  <span className="text-[9px] text-editor-textMuted leading-none mt-0.5 ml-1">
+                  <span className="text-[9px] text-editor-muted leading-none mt-0.5 ml-1">
                     {formatTime(t)}
                   </span>
                 </div>
@@ -234,7 +234,7 @@ export default function Timeline() {
 
             {/* Face track */}
             <div
-              className="h-10 border-b border-editor-borderMuted relative cursor-pointer"
+              className="h-10 border-b border-editor-divider relative cursor-pointer"
               onClick={handleTrackClick}
             >
               {duration > 0 && (
@@ -247,7 +247,7 @@ export default function Timeline() {
 
             {/* Screen track */}
             <div
-              className="h-10 border-b border-editor-borderMuted relative cursor-pointer"
+              className="h-10 border-b border-editor-divider relative cursor-pointer"
               onClick={handleTrackClick}
             >
               {duration > 0 && (
@@ -312,7 +312,7 @@ export default function Timeline() {
                       </span>
                     )}
                     {w > 30 && cut.status === "rejected" && (
-                      <span className="absolute bottom-1 right-1.5 text-[10px] text-editor-textMuted pointer-events-none">
+                      <span className="absolute bottom-1 right-1.5 text-[10px] text-editor-muted pointer-events-none">
                         ✗
                       </span>
                     )}
@@ -339,7 +339,7 @@ export default function Timeline() {
       </div>
 
       {/* Legend footer */}
-      <div className="flex items-center gap-3 px-3 h-6 border-t border-editor-border text-[9px] text-editor-textMuted bg-editor-panel">
+      <div className="flex items-center gap-3 px-3 h-6 border-t border-editor-border text-[9px] text-editor-muted bg-editor-panel">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-sm bg-cut-retake/60" />retake
         </span>
