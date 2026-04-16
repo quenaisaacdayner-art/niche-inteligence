@@ -21,11 +21,31 @@ def project_root(tmp_path: Path) -> Path:
     ]
     (slug_dir / "gaps.json").write_text(json.dumps(gaps))
 
-    (slug_dir / "sync.json").write_text(json.dumps({"offset_screen_seconds": 0.5}))
+    # Master file (the single primary video)
+    (slug_dir / "master.mp4").write_bytes(b"\x00")
 
-    # Create dummy video files (empty, just for existence checks)
-    (slug_dir / "face_clean.mp4").write_bytes(b"\x00")
-    (slug_dir / "screen_clean.mp4").write_bytes(b"\x00")
+    # Overlays subfolder + one sample overlay + overlays.json
+    overlays_dir = slug_dir / "overlays"
+    overlays_dir.mkdir()
+    (overlays_dir / "broll1.mp4").write_bytes(b"\x00")
+
+    overlays = [
+        {
+            "id": "ovl_broll1_10000_0",
+            "file": "broll1.mp4",
+            "track": 2,
+            "timeline_pos": 10.0,
+            "time_in": 0.0,
+            "time_out": 5.0,
+            "position": "pip",
+            "mute": True,
+            "volume": 1.0,
+            "x_pct": None,
+            "y_pct": None,
+            "width_pct": None,
+        }
+    ]
+    (slug_dir / "overlays.json").write_text(json.dumps(overlays))
 
     # Memory dir
     (tmp_path / "memory").mkdir()

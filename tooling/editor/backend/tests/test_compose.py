@@ -1,9 +1,15 @@
-"""Tests for compose helpers: merge_ranges, compute_keep_segments, build_compose_ffmpeg_args."""
+"""Tests for compose helpers: merge_ranges, compute_keep_segments, build_compose_ffmpeg_args, compute_overlay_placements."""
 import pytest
 from pathlib import Path
 
-from services import merge_ranges, compute_keep_segments, build_compose_ffmpeg_args
-from models import Cut
+from services import (
+    merge_ranges,
+    compute_keep_segments,
+    build_compose_ffmpeg_args,
+    compute_overlay_placements,
+    OverlayPlacement,
+)
+from models import Cut, Overlay
 
 
 def make_cut(
@@ -25,6 +31,25 @@ def make_cut(
         status=status,
         adjusted_in=adjusted_in,
         adjusted_out=adjusted_out,
+    )
+
+
+def make_overlay(
+    id: str,
+    timeline_pos: float,
+    duration: float,
+    time_in: float = 0.0,
+    track: int = 2,
+    position: str = "pip",
+) -> Overlay:
+    return Overlay(
+        id=id,
+        file=f"{id}.mp4",
+        track=track,
+        timeline_pos=timeline_pos,
+        time_in=time_in,
+        time_out=time_in + duration,
+        position=position,
     )
 
 
@@ -155,3 +180,130 @@ def test_build_compose_single_segment(tmp_path: Path):
     idx = args.index("-filter_complex")
     fc = args[idx + 1]
     assert "concat=n=1:v=1:a=1" in fc
+
+
+# --- compute_overlay_placements ---
+
+def test_placements_no_cuts_single_overlay(tmp_path: Path):
+    overlays = [make_overlay("a", timeline_pos=5.0, duration=3.0)]
+    keep = [(0.0, 60.0)]
+    placements = compute_overlay_placements(overlays, keep, tmp_path / "overlays")
+    assert len(placements) == 1
+    assert placements[0].compose_pos == pytest.approx(5.0)
+    assert placements[0].overlay.id == "a"
+
+
+def test_placements_cuts_shift_overlays(tmp_path: Path):
+    """Cut [2, 4] → keep=[(0,2),(4,60)]. Overlay at 10s original → compose_pos = 2 + (10 - 4) = 8s."""
+    overlays = [make_overlay("a", timeline_pos=10.0, duration=3.0)]
+    keep = [(0.0, 2.0), (4.0, 60.0)]
+    placements = compute_overlay_placements(overlays, keep, tmp_path / "overlays")
+    assert len(placements) == 1
+    assert placements[0].compose_pos == pytest.approx(8.0)
+
+
+def test_placements_overlay_inside_cut_dropped(tmp_path: Path):
+    """Overlay fully inside a cut region → dropped."""
+    overlays = [make_overlay("a", timeline_pos=3.0, duration=1.0)]  # 3-4
+    keep = [(0.0, 2.0), (5.0, 60.0)]  # cut is 2-5
+    placements = compute_overlay_placements(overlays, keep, tmp_path / "overlays")
+    assert placements == []
+
+
+def test_placements_overlay_straddle_boundary_dropped(tmp_path: Path):
+    """Overlay straddling a cut boundary → dropped (MVP limitation)."""
+    overlays = [make_overlay("a", timeline_pos=1.0, duration=3.0)]  # 1-4
+    keep = [(0.0, 2.0), (5.0, 60.0)]  # cut 2-5
+    placements = compute_overlay_placements(overlays, keep, tmp_path / "overlays")
+    assert placements == []
+
+
+def test_placements_multiple_overlays_multiple_keeps(tmp_path: Path):
+    overlays = [
+        make_overlay("a", timeline_pos=1.0, duration=0.5),   # in keep 1
+        make_overlay("b", timeline_pos=30.0, duration=2.0),  # in keep 2
+        make_overlay("c", timeline_pos=3.5, duration=1.0),   # in cut region (dropped)
+    ]
+    keep = [(0.0, 2.0), (5.0, 60.0)]
+    placements = compute_overlay_placements(overlays, keep, tmp_path / "overlays")
+    ids = [p.overlay.id for p in placements]
+    assert sorted(ids) == ["a", "b"]
+
+
+def test_placements_file_path_uses_overlays_dir(tmp_path: Path):
+    overlays = [make_overlay("broll", timeline_pos=0.0, duration=1.0)]
+    overlays_dir = tmp_path / "custom_dir"
+    placements = compute_overlay_placements(overlays, [(0.0, 60.0)], overlays_dir)
+    assert placements[0].file_path == overlays_dir / "broll.mp4"
+
+
+# --- build_compose with overlays ---
+
+def test_build_compose_with_overlays_adds_inputs(tmp_path: Path):
+    master = tmp_path / "master.mp4"
+    out = tmp_path / "out.mp4"
+    ov_path = tmp_path / "overlays" / "broll.mp4"
+    overlay = make_overlay("a", timeline_pos=5.0, duration=3.0)
+    placement = OverlayPlacement(overlay=overlay, compose_pos=5.0, file_path=ov_path)
+
+    args = build_compose_ffmpeg_args(
+        master, out, [(0.0, 60.0)], overlay_placements=[placement], master_size=(1920, 1080)
+    )
+
+    # Two -i inputs: master + overlay
+    input_count = sum(1 for a in args if a == "-i")
+    assert input_count == 2
+    assert str(ov_path) in args
+
+    idx = args.index("-filter_complex")
+    fc = args[idx + 1]
+    assert "overlay=" in fc
+    assert "enable='between(t,5.000,8.000)'" in fc
+    # Overlay trim+setpts
+    assert "[1:v]trim=start=0.000:end=3.000" in fc
+
+
+def test_build_compose_with_overlays_no_cuts(tmp_path: Path):
+    """No cuts but has overlays — should still use filter_complex, not copy."""
+    master = tmp_path / "master.mp4"
+    out = tmp_path / "out.mp4"
+    overlay = make_overlay("a", timeline_pos=2.0, duration=1.0)
+    placement = OverlayPlacement(
+        overlay=overlay, compose_pos=2.0, file_path=tmp_path / "a.mp4"
+    )
+    args = build_compose_ffmpeg_args(
+        master, out, [], overlay_placements=[placement]
+    )
+    assert "-filter_complex" in args
+    # Should NOT use stream copy
+    assert not (args[-3:-2] == ["-c"] and args[-2:-1] == ["copy"])
+
+
+def test_build_compose_pip_position_uses_bottom_right(tmp_path: Path):
+    master = tmp_path / "master.mp4"
+    out = tmp_path / "out.mp4"
+    overlay = make_overlay("a", timeline_pos=0.0, duration=1.0, position="pip")
+    placement = OverlayPlacement(overlay=overlay, compose_pos=0.0, file_path=tmp_path / "a.mp4")
+    args = build_compose_ffmpeg_args(
+        master, out, [(0.0, 10.0)], overlay_placements=[placement], master_size=(1920, 1080)
+    )
+    idx = args.index("-filter_complex")
+    fc = args[idx + 1]
+    # pip = 22% wide scale, bottom-right position
+    assert "scale=422:-1" in fc  # 1920 * 0.22 = 422
+    # x_px = 1920 - 422 - 38 = 1460
+    assert "x=1460" in fc
+
+
+def test_build_compose_fullscreen_position(tmp_path: Path):
+    master = tmp_path / "master.mp4"
+    out = tmp_path / "out.mp4"
+    overlay = make_overlay("a", timeline_pos=0.0, duration=1.0, position="fullscreen")
+    placement = OverlayPlacement(overlay=overlay, compose_pos=0.0, file_path=tmp_path / "a.mp4")
+    args = build_compose_ffmpeg_args(
+        master, out, [(0.0, 10.0)], overlay_placements=[placement], master_size=(1920, 1080)
+    )
+    idx = args.index("-filter_complex")
+    fc = args[idx + 1]
+    assert "scale=1920:1080" in fc
+    assert "x=0:y=0" in fc
