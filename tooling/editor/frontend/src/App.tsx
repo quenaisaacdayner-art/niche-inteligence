@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { useEditorStore } from "./stores/editor";
-import { fetchCuts } from "./api";
+import { fetchCuts, fetchProject, fetchOverlays } from "./api";
 import Header from "./components/Header";
 import VideoPlayer from "./components/VideoPlayer";
 import Timeline from "./components/Timeline";
-import CutList from "./components/CutList";
+import LeftPanel from "./components/LeftPanel";
 import Inspector from "./components/Inspector";
 import Toasts from "./components/Toasts";
 import ShortcutsModal from "./components/ShortcutsModal";
@@ -14,7 +14,9 @@ import { useWebSocket } from "./hooks/useWebSocket";
 export default function App() {
   const slug = useEditorStore((s) => s.slug);
   const setSlug = useEditorStore((s) => s.setSlug);
+  const setProjectInfo = useEditorStore((s) => s.setProjectInfo);
   const loadCuts = useEditorStore((s) => s.loadCuts);
+  const loadOverlays = useEditorStore((s) => s.loadOverlays);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -24,11 +26,16 @@ export default function App() {
 
   useEffect(() => {
     if (!slug) return;
+    fetchProject(slug).then(setProjectInfo).catch(() => setProjectInfo(null));
     fetchCuts(slug).then(loadCuts);
-  }, [slug, loadCuts]);
+    fetchOverlays(slug).then(loadOverlays);
+  }, [slug, loadCuts, loadOverlays, setProjectInfo]);
 
   useWebSocket(slug, () => {
-    if (slug) fetchCuts(slug).then(loadCuts);
+    if (!slug) return;
+    fetchProject(slug).then(setProjectInfo).catch(() => {});
+    fetchCuts(slug).then(loadCuts);
+    fetchOverlays(slug).then(loadOverlays);
   });
 
   useKeyboard();
@@ -43,13 +50,10 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-editor-bg overflow-hidden">
-      {/* Top: Header */}
       <Header />
-
-      {/* Middle: 3 columns (CutList | Player | Inspector) */}
       <div className="flex flex-1 min-h-0">
         <aside className="w-72 flex-shrink-0">
-          <CutList />
+          <LeftPanel />
         </aside>
         <main className="flex-1 flex flex-col min-w-0">
           <VideoPlayer />
@@ -58,11 +62,7 @@ export default function App() {
           <Inspector />
         </aside>
       </div>
-
-      {/* Bottom: Timeline (full width) */}
       <Timeline />
-
-      {/* Overlays */}
       <Toasts />
       <ShortcutsModal />
     </div>

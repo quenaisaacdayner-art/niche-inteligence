@@ -6,6 +6,8 @@ export type FilterStatus = "all" | "pending" | "rejected";
 
 export type PlaybackRate = 0.5 | 1 | 1.5 | 2;
 
+export type OverlayPosition = "pip" | "fullscreen" | "custom";
+
 export interface Cut {
   id: string;
   cut_type: CutType;
@@ -17,14 +19,34 @@ export interface Cut {
   adjusted_in: number | null;
   adjusted_out: number | null;
   dayner_note: string | null;
-  /** Source track this cut applies to. "both" = face+screen (default for gaps/retakes). */
   source?: "face" | "screen" | "both";
+}
+
+export interface Overlay {
+  id: string;
+  /** Filename under {slug}/overlays/ */
+  file: string;
+  /** Track index on the timeline. 1 = master (reserved); overlays use 2+. */
+  track: number;
+  /** Position on the master timeline (seconds) where the overlay starts. */
+  timeline_pos: number;
+  /** Trim start inside the overlay file (seconds). */
+  time_in: number;
+  /** Trim end inside the overlay file (seconds). */
+  time_out: number;
+  position: OverlayPosition;
+  mute: boolean;
+  volume: number;
+  /** Custom position (0-100 percentages of the master video area). */
+  x_pct?: number | null;
+  y_pct?: number | null;
+  width_pct?: number | null;
 }
 
 export interface ProjectInfo {
   slug: string;
-  has_face_clean: boolean;
-  has_screen_clean: boolean;
+  master: { file: string } | null;
+  overlays: Overlay[];
   has_body: boolean;
   data_dir: string;
 }
