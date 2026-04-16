@@ -1,240 +1,309 @@
-# HANDOFF — MVP Editor Visual (sessao 2026-04-15)
+# HANDOFF — MVP Editor Visual
 
-> **ATUALIZADO 2026-04-16:** Sessao de aprofundamento concluida com Dayner.
-> Redesign completo definido em `SINTESE_ARQUITETURAL.md` secao 16.5 (agora
-> APROFUNDADA). Layout 4 zonas CapCut-style, virtual cut como mecanica central,
-> tema dark navy + teal accent. **A lista de gaps abaixo (secao 3) foi SUBSTITUIDA
-> pela feature prioritization da secao 16.5.** Usar 16.5 como fonte de verdade
-> pra construcao, nao este handoff.
+> **Propósito:** Handoff entre sessões. Estado atual + contexto pra continuar.
+> Le este arquivo PRIMEIRO antes de qualquer ação relacionada ao editor.
 
-> **Proposito:** Documento de handoff pra proxima sessao continuar o trabalho no
-> MVP Editor Visual. Le este arquivo PRIMEIRO antes de qualquer acao.
+> **Fonte única de verdade da spec:** `SINTESE_ARQUITETURAL.md` seção 16.5
+> (APROFUNDADA 2026-04-16). Nao reabrir decisões tomadas lá.
 
 ---
 
-## 1. O que foi feito nesta sessao
+## 1. Status atual (2026-04-16)
 
-### Brainstorming + Design (aprovado pelo Dayner)
+**MVP Editor Visual v1 COMPLETO e FUNCIONANDO.**
 
-Sessao de brainstorming com Visual Companion (mockups no browser) onde 4 gaps
-criticos foram debatidos e fechados:
+- ✅ Redesign CapCut-style aplicado (layout 4 zonas, tema dark navy + teal)
+- ✅ Virtual cut mechanic funcionando (player pula cortes aprovados em tempo real)
+- ✅ Todas as features MUST HAVE (7/7) e SHOULD HAVE (5/5) da spec 16.5
+- ✅ 3/6 NICE TO HAVE (shortcuts modal, batch por tipo, loading states)
+- ✅ 51 testes green (26 frontend vitest + 25 backend pytest)
+- ✅ Build de produção OK (230KB JS + 20KB CSS)
+- ✅ Rodando em `http://localhost:5173?slug=demo` com fixture demo
 
-| Gap | Decisao | Alternativas descartadas |
-|-----|---------|--------------------------|
-| Escopo | **1 editor, 3 modos** (video-cut primeiro; audio/overlays depois) | 3 editores (duplicacao 3x); core+plugins (over-engineering) |
-| Papel do Claude | **Opcao D+** — botoes fixos + memoria de calibracao + escape hatch texto | Chat embutido (reimplementa Claude Code); sem Claude (rigido demais) |
-| Integracao Claude | **File-based via watcher**. Zero subprocess/chat embutido. Claude Code roda no terminal, editor recarrega via WebSocket quando JSON muda. | Subprocess spawn (fragil); MCP server (complexo) |
-| Hospedagem | **`tooling/editor/`** com CLAUDE.md proprio dentro do niche-intelligence | Projeto separado (perde contexto) |
+**Branch:** `feat/mvp-editor-visual` (12 commits, NÃO mergeado em master)
 
-**Ideia original do Dayner:** editor onde ele edita as sugestoes do Claude, executa
-cortes um por um ou batch, retrocede (undo), e visualiza o resultado. E CRITICO:
-cada correcao do Dayner vira exemplo pro proximo video (feedback loop via
-`memory/video-cut-corrections.jsonl`). Apos ~5 videos, sistema calibrado >90%
-aprovacao sem ajuste.
-
-### Documentos produzidos
-
-| Arquivo | Conteudo |
-|---------|---------|
-| `docs/superpowers/specs/2026-04-15-mvp-editor-visual-design.md` | Design spec completo (10 secoes) |
-| `docs/superpowers/plans/2026-04-15-mvp-editor-visual.md` | Plano de implementacao (8 tasks, 2571 linhas, codigo completo) |
-
-### Implementacao (8/8 tasks concluidas)
-
-Branch: **`feat/mvp-editor-visual`** (10 commits, a partir de `b0078a6`)
-
+**Últimos commits:**
 ```
+7612ed1 fix(editor): rename camelCase color keys to kebab-friendly lowercase
+2668a84 feat(editor): CapCut-style redesign — virtual cut + 4-zone layout
+2b4bc0a docs: add handoff for MVP Editor Visual session
 ba4869a feat(editor): websocket integration — MVP complete
 b855055 feat(editor): cut list, action panel, keyboard shortcuts — full review flow
 d8cf066 feat(editor): timeline with cut strips + waveform with wavesurfer.js
 228b4dc feat(editor): frontend shell with layout, header, video player + placeholders
-8ccabab feat(editor): frontend foundation — types, api, store with undo/redo + tests
-49d26c5 feat(editor): backend API server with all endpoints + watcher + tests
-93f7905 feat(editor): backend data layer — models + services + tests
-67b93be feat(editor): scaffold project structure with configs and fixtures
-a8a8b1f feat(editor): implementation plan — 8 tasks with complete code
-b0078a6 Add MVP Editor Visual design spec (Onda 0)
-```
-
-### Testes
-
-- **Frontend (vitest):** 8/8 pass (editor store: load, approve, reject, adjust, undo, redo, approveAll, select)
-- **Backend (pytest):** 8/8 pass (4 service tests + 4 endpoint tests)
-
-### Como rodar
-
-```bash
-cd tooling/editor && bash scripts/dev.sh --fixture demo
-# Abre http://localhost:5173?slug=demo
 ```
 
 ---
 
-## 2. Arquitetura implementada
+## 2. O que foi feito nesta sessão (2026-04-16)
 
-```
-Frontend (Vite+React :5173)  ←→  Backend (FastAPI :8000)  ←→  Filesystem (data/)
-                                        ↕
-                                  WebSocket watcher
-                                  (watchdog observa data/)
-```
+### 2.1 Sessão de aprofundamento (seção 16.5 da SINTESE)
 
-### Frontend
+Dayner reportou que o MVP anterior (2026-04-15) "parecia dashboard, não editor".
+Discussão focou em 3 pontos:
 
-| Componente | O que faz |
-|------------|-----------|
-| `App.tsx` | Layout grid: header / player+sidebar / timeline+waveform. Le `?slug=` da URL. |
-| `Header.tsx` | Slug, pending count, undo/redo, "Aplicar cortes", "Compor body.mp4" |
-| `VideoPlayer.tsx` | 2 videos HTML5 sync (screen fullscreen + face PIP corner). RAF sync loop. |
-| `Timeline.tsx` | 2 tracks (face/screen) + cut strips coloridos + playhead + drag handles + zoom |
-| `Waveform.tsx` | wavesurfer.js v7 renderizando audio de face_clean.mp4 |
-| `CutList.tsx` | Lista lateral com status icons, time ranges, click-to-navigate |
-| `ActionPanel.tsx` | Aprovar/rejeitar + nota + aprovar todos + escape hatch D+ |
-| `useKeyboard.ts` | Space, J/K/L, setas, A/R, Ctrl+Z — skipa quando em INPUT |
-| `useWebSocket.ts` | Conecta ao backend watcher, recarrega dados em file_changed |
-| `editor.ts` (store) | Zustand + immer: cuts state, undo/redo (snapshots), playback, zoom |
+1. **Funções faltantes:** cortar em tempo real + ver resultado imediato (não só aprovar/rejeitar).
+2. **Design:** muito "developer tool" — queria algo CapCut-like, intuitivo.
+3. **Referências:** Dayner mostrou screenshot do CapCut Desktop como look alvo.
 
-### Backend
+Pesquisa paralela confirmou que editores pro caso (CapCut, Descript, Kapwing, DaVinci)
+compartilham padrões específicos: timeline multi-track com trim handles, split at playhead,
+preview regiao, virtual cut (não re-encoding).
 
-| Endpoint | Funcao |
-|----------|--------|
-| `GET /api/project/{slug}` | Metadata (quais arquivos existem) |
-| `GET /api/cuts/{slug}` | Cuts mergeados (retakes + gaps + approved status) |
-| `POST /api/cuts/{slug}/save` | Escreve cuts_approved.json |
-| `POST /api/cuts/{slug}/approve-all` | Aprova todos pendentes |
-| `POST /api/corrections/{slug}` | Appenda correcao ao JSONL |
-| `POST /api/compose/{slug}` | Dispara FFmpeg async (job_id) |
-| `GET /api/compose/{slug}/status` | Poll status do job |
-| `WS /ws/watch/{slug}` | Notifica frontend quando JSON muda em disco |
-| Static `/media/` | Serve videos com range requests (StaticFiles) |
+Decisão arquitetural nova: **virtual cut como mecânica central** (player skip via RAF,
+não precisa recompor o vídeo a cada ação). Seção 16.5 da SINTESE expandida com spec
+completa (12 subseções), marcada APROFUNDADA 2026-04-16.
 
-### Feedback loop (memoria de calibracao)
+### 2.2 Implementação
 
-Cada acao do Dayner (aprovar/rejeitar/ajustar) gera entrada em
-`memory/video-cut-corrections.jsonl`:
+**Redesign aplicado em 21 arquivos:**
+- NOVOS: `Inspector.tsx`, `ShortcutsModal.tsx`, `Toasts.tsx`, `test_compose.py`
+- REMOVIDO: `ActionPanel.tsx` (substituído por `Inspector.tsx`)
+- ATUALIZADOS: App, Header, VideoPlayer, Timeline, Waveform, CutList, useKeyboard,
+  editor store (split + skipList + rate + filter + toasts), types, tailwind, CSS, backend
 
-```json
-{
-  "video_slug": "slug",
-  "date": "2026-04-16",
-  "cut_type": "retake|gap|filler",
-  "time_in": 3.2, "time_out": 5.8,
-  "claude_reason": "retake: repeated 'bem...'",
-  "transcript_context": "bem... bem interessante",
-  "action": "approved|rejected|adjusted",
-  "adjusted_in": null, "adjusted_out": null,
-  "dayner_note": "nao era retake, era enfase"
-}
-```
+**Tokens de design novos (tailwind.config.ts):**
+- `editor.bg` `#15161a` | `editor.panel` `#1e1f25` | `editor.elevated` `#252630`
+- `editor.border` `#2a2b35` | `editor.divider` `#1f2029`
+- `editor.text` `#e4e4e7` | `editor.muted` `#8b8b9e` | `editor.dim` `#5a5b6b`
+- `accent.DEFAULT` `#00bcd4` (teal/cyan) | `accent.hover` `#00d4e8`
+- `cut.retake` (vermelho) | `cut.gap` (amber) | `cut.filler` (orange) | `cut.manual` (roxo)
 
-Proximo video: prompt `retake_detection.md` le esse arquivo no bloco CALIBRACAO.
+**Virtual cut implementation (VideoPlayer.tsx):**
+- `deriveSkipList(cuts)` deriva ranges de cortes aprovados/ajustados (sorted by start)
+- RAF loop no player: se `currentTime` está dentro de qualquer range, `video.currentTime = range.out`
+- Face + screen pulam sincronizados
+- Preview region (P): seta `previewEndTime` no store, player para automático quando atinge
+- Zero re-encoding: MP4 original não muda até o usuário clicar "Compor"
+
+**Compose real (backend/services.py):**
+- `merge_ranges()` — junta overlaps
+- `compute_keep_segments(cuts, duration)` — complemento dos remove ranges
+- `build_compose_ffmpeg_args()` — gera FFmpeg `filter_complex` com `trim` + `atrim` + `concat`
+- Antes: `ffmpeg -i face_clean -c copy body.mp4` (só copiava)
+- Agora: aplica os cortes aprovados via filter graph
+
+### 2.3 Bug corrigido
+
+Tailwind v3 `@apply` em arquivos CSS não resolve nested keys camelCase. Config inicial
+tinha `textMuted`, `textDim`, `borderMuted` — dev server PostCSS falhava com
+"text-editor-textMuted class does not exist" (build passava, dev não).
+
+Fix: renomeado pra lowercase simples — `muted`, `dim`, `divider`. Atualizado 8 arquivos.
+Commit `7612ed1`.
 
 ---
 
-## 3. O que FALTA — gaps auditados
-
-### CRITICO (sem isso nao serve pra uso real)
-
-| # | Gap | Detalhe |
-|---|-----|---------|
-| 1 | **Auto-avanco apos aprovar/rejeitar** | Hoje fica parado no mesmo corte. Precisa saltar pro proximo pendente automaticamente. |
-| 2 | **Preview da regiao do corte** | Tecla P = toca [time_in → time_out] e para. Sem isso nao da pra ouvir o trecho pra decidir. |
-| 3 | **Timeline segue o playhead** | Playhead sai da tela durante playback, timeline nao scrolla. |
-| 4 | **Compose realmente aplica os cortes** | Hoje o backend FAZ `ffmpeg -i face_clean -c copy body.mp4` (so copia!). Precisa usar concat demuxer/trim filters baseado em cuts_approved.json pra remover os trechos aprovados. |
-
-### IMPORTANTE (fluxo profissional)
-
-| # | Gap | Detalhe |
-|---|-----|---------|
-| 5 | **Resumo de status** | Mostrar "X aprovados, Y rejeitados, Z pendentes" no header ou topo da lista. |
-| 6 | **Feedback visual (toasts)** | "Aplicar cortes" e "Compor" nao mostram nenhum feedback. Toast simples. |
-| 7 | **Filtrar cortes por status** | Botoes "Todos / Pendentes / Rejeitados" no topo da CutList. |
-| 8 | **Player mostra body.mp4 apos compose** | Trocar source do player pra body.mp4 quando compose termina. |
-| 9 | **Controle de velocidade** | 0.5x / 1x / 1.5x / 2x. Essencial pra revisar 12min de video. |
-
-### POLIMENTO
-
-| # | Gap | Detalhe |
-|---|-----|---------|
-| 10 | **Modal de atalhos** | Tecla "?" abre modal com todos os shortcuts. |
-| 11 | **Loading states** | Spinner em videos/waveform/dados enquanto carrega. |
-| 12 | **Tratamento de erros** | Mensagem visivel se backend cai, video falha, compose falha. |
-| 13 | **Auto-scroll na CutList** | Lista nao scrolla pro corte selecionado via ↑↓. |
-
-### Estimativa de esforco
-
-- Criticos (1-4): ~2-3h
-- Importantes (5-9): ~2-3h
-- Polimento (10-13): ~1-2h
-- **Total: ~5-8h pra editor "profissional usavel"**
-
----
-
-## 4. Estrutura de arquivos
+## 3. Estrutura de arquivos (atual)
 
 ```
 tooling/editor/
-├── CLAUDE.md
-├── package.json
-├── requirements.txt
+├── CLAUDE.md                         # sub-project conventions
+├── package.json                      # scripts: dev / build / test
+├── requirements.txt                  # FastAPI, uvicorn, watchdog, pytest
+├── scripts/dev.sh                    # start backend + frontend
 ├── frontend/
 │   ├── index.html
-│   ├── vite.config.ts, tailwind.config.ts, postcss.config.js, tsconfig.json
+│   ├── vite.config.ts                # proxy /api + /media + /ws → :8000
+│   ├── tailwind.config.ts            # design tokens (editor / accent / cut / track)
 │   ├── src/
-│   │   ├── main.tsx, App.tsx, index.css
-│   │   ├── types.ts, api.ts
-│   │   ├── stores/editor.ts
-│   │   ├── hooks/useKeyboard.ts, useWebSocket.ts
-│   │   └── components/Header, VideoPlayer, Timeline, Waveform, CutList, ActionPanel
-│   └── __tests__/editor-store.test.ts
+│   │   ├── main.tsx, App.tsx         # 4-zone grid layout
+│   │   ├── index.css                 # @tailwind + @layer components
+│   │   ├── types.ts                  # Cut, Correction, SkipRange, Toast, FilterStatus
+│   │   ├── api.ts                    # fetch wrappers
+│   │   ├── stores/editor.ts          # zustand + immer (split, skipList, rate, filter, toasts)
+│   │   ├── hooks/
+│   │   │   ├── useKeyboard.ts        # Space/J/K/L/S/A/R/P/1-4/?/Delete/Ctrl+Z
+│   │   │   └── useWebSocket.ts       # /ws/watch/{slug}
+│   │   └── components/
+│   │       ├── Header.tsx            # slug + status counters + undo/redo + Save/Export
+│   │       ├── CutList.tsx           # left panel, filters All/Pending/Rejected
+│   │       ├── VideoPlayer.tsx       # dual sync + virtual cut RAF + speed controls
+│   │       ├── Inspector.tsx         # right panel, cut details, approve/reject
+│   │       ├── Timeline.tsx          # toolbar + multi-track + trim handles + playhead follow
+│   │       ├── Waveform.tsx          # wavesurfer.js sub-component (used by Timeline)
+│   │       ├── Toasts.tsx            # notifications
+│   │       └── ShortcutsModal.tsx    # ? key modal
+│   └── __tests__/editor-store.test.ts # 26 tests (virtual cut, split, auto-advance, filters, etc)
 ├── backend/
-│   ├── server.py, models.py, services.py, pytest.ini
-│   └── tests/conftest.py, test_api.py
-├── fixtures/demo/
-│   ├── cuts_retakes.json, gaps.json, sync.json
-│   └── face_clean.mp4, screen_clean.mp4 (gitignored, gerados via FFmpeg)
-└── scripts/dev.sh
+│   ├── server.py                     # FastAPI + WebSocket + CORS + /media mount
+│   ├── models.py                     # Cut (w/ source field), Correction, SaveCutsRequest, ComposeJob
+│   ├── services.py                   # load/save, append_correction, merge_ranges, compute_keep_segments, build_compose_ffmpeg_args, probe_duration
+│   ├── pytest.ini
+│   └── tests/
+│       ├── test_api.py               # 8 tests (load/save/endpoints)
+│       └── test_compose.py           # 17 tests (compose helpers)
+└── fixtures/demo/
+    ├── cuts_retakes.json, gaps.json, sync.json, cuts_approved.json
+    └── face_clean.mp4, screen_clean.mp4   # gitignored
 ```
 
 ---
 
-## 5. Decisoes que NAO devem ser re-abertas
+## 4. Como rodar
 
-1. **1 editor, 3 modos** — decidido e implementado. NAO criar 3 editores.
-2. **Opcao D+** (botoes + memoria + escape hatch) — decidido. NAO embutir chat Claude.
-3. **File-based bridge** — decidido. Claude Code no terminal, editor le/escreve JSONs.
-4. **Zustand + immer pra undo** — implementado e testado. NAO migrar pra Redux.
-5. **wavesurfer.js v7** — implementado. NAO trocar.
-6. **HTML/CSS divs pra timeline** — implementado (nao canvas). NAO migrar pra canvas.
-7. **FastAPI + watchdog** — implementado e testado. NAO trocar framework.
+```bash
+# Terminal único (mata com Ctrl+C):
+cd tooling/editor && bash scripts/dev.sh --fixture demo
+# Abre: http://localhost:5173?slug=demo
+
+# OU manual em dois terminais:
+# Terminal 1 — backend:
+cd tooling/editor/backend && \
+  PROJECT_ROOT=/c/Users/quena/projetos/niche-intelligence \
+  FIXTURE_DIR=/c/Users/quena/projetos/niche-intelligence/tooling/editor/fixtures/demo \
+  python -m uvicorn server:app --port 8000 --host 127.0.0.1
+
+# Terminal 2 — frontend:
+cd tooling/editor/frontend && npx vite --host 127.0.0.1
+```
+
+Rodar testes:
+```bash
+cd tooling/editor && npm test                          # 26 frontend tests
+cd tooling/editor/backend && python -m pytest tests/   # 25 backend tests
+cd tooling/editor/frontend && npx tsc --noEmit         # typecheck
+cd tooling/editor/frontend && npx vite build           # production build
+```
 
 ---
 
-## 6. Prioridade recomendada pra proxima sessao
+## 5. Keyboard shortcuts (definitivos)
 
-1. Implementar os 4 gaps CRITICOS (auto-avanco, preview regiao, timeline-follow, compose real)
-2. Implementar os 5 gaps IMPORTANTES (status summary, toasts, filtros, body.mp4 no player, velocidade)
-3. Polimento se sobrar tempo
-4. Testar com fixtures (ainda nao ha video real — Dayner precisa gravar primeiro)
+| Tecla | Ação |
+|---|---|
+| Space | Play/Pause |
+| J/K/L | Shuttle -5s / Stop / Shuttle +5s |
+| ← → | Frame step |
+| ↑ ↓ | Navegar entre cortes (respeita filtro ativo) |
+| S | **Split no playhead — cria corte manual** |
+| A | Aprovar corte selecionado (auto-avanço) |
+| R | Rejeitar corte selecionado (auto-avanço) |
+| P | **Preview região do corte** (toca [in, out] e para) |
+| Delete | Remove corte manual selecionado |
+| 1/2/3/4 | Velocidade 0.5x / 1x / 1.5x / 2x |
+| Ctrl+Z / Ctrl+Shift+Z | Undo / Redo |
+| Ctrl+S | Salvar cortes |
+| ? | Abrir modal de shortcuts |
+| Esc | Fechar modal / cancelar preview |
 
 ---
 
-## 7. Referencia cruzada
+## 6. Decisões que NÃO devem ser reabertas
+
+(Copiadas da SINTESE seção 16.5 §12 — reabrir só com evidência forte)
+
+1. Layout 4 zonas CapCut — CutList / Player / Inspector / Timeline
+2. Virtual cut como mecânica central (player skip RAF, não re-encoding)
+3. Tema dark navy + teal accent (tokens no tailwind.config)
+4. Stack: Vite + React + Tailwind + Zustand + Immer + wavesurfer.js + FastAPI + watchdog
+5. File-based bridge com Claude Code (terminal separado, WebSocket pra reload)
+6. Opção D+ (botões + memória calibração + escape hatch, SEM chat embutido)
+7. 1 editor, 3 modos (video-cut primeiro; audio/overlays depois)
+8. Compose real via FFmpeg `filter_complex` (trim+concat)
+9. Split at playhead (S) — cria corte manual de 0.5s centrado no currentTime
+10. Status filtros: All / Pendentes / Rejeitados (não "approved")
+11. Hospedagem: `tooling/editor/` (não `skills/`)
+
+---
+
+## 7. O que falta (próxima sessão ou posteriores)
+
+### 7.1 NICE TO HAVE ainda não implementados (baixa prioridade)
+
+- **Frame thumbnails na timeline** — requer FFmpeg server-side pra gerar sprite de frames
+- **Overview + detail timeline** (DaVinci Cut Page pattern) — timeline fina full-length + zoom detail
+- **Body.mp4 preview post-compose** — player troca source automaticamente após compose
+- **Modo video-audio / video-overlays** — mesma UI, mas outros tipos de operações
+
+### 7.2 Bloqueios externos
+
+**Onda 1b (video-cut)** está **bloqueada** por 2 pré-requisitos:
+
+1. **Dayner grava 1º vídeo teste real** (5-10min: hook + demo + CTA)
+   - Instalar Recordly + OBS
+   - Gravar face-cam + screencast separados
+   - ~1h de trabalho manual
+
+2. **Atualizar `roteiro-youtube` pra emitir markers visuais**
+   - Schema: `[BLOCO N — SOURCE:position]` (FACE / PIP / SCREEN)
+   - Sem timestamps (whisper-timestamped fornece tempo real via fuzzy match)
+   - Spec em SINTESE 16.2 §5.3
+
+**Onda 1a (thumbnail-generator)** já foi construída (smoke test OK) mas aguarda vídeo real
+pra validar `gen_background.py` (Gemini API $0.06/run) + judge multimodal com Read tool.
+
+---
+
+## 8. Próxima sessão — plano acordado
+
+**Decisão (2026-04-16):** caminho paralelo.
+
+**Dayner faz (manual):**
+1. Instalar Recordly (v1.1.20+) + OBS Studio
+2. Configurar captura (webcam + mic)
+3. Gravar 1 vídeo de 5-10min com estrutura: hook (FACE) → demo (PIP:br) → CTA (FACE)
+4. Salvar como `data/video-raw/{slug}/facecam.mp4` + `screencast.mp4`
+
+**Claude Code faz (código) em paralelo:**
+1. Atualizar `skills/roteiro-youtube/` pra emitir markers `[BLOCO N — SOURCE]`
+   (ver SINTESE 16.2 §5.3 pra schema exato)
+2. Scaffold da skill `video-cut`:
+   - `skills/video-cut/SKILL.md`
+   - `references/prompts/_video_cut_principles.md`
+   - `references/prompts/retake_detection.md`
+   - `references/prompts/manifest_builder.md`
+   - `scripts/extract_audio.py`, `transcribe.py`, `detect_gaps.py`, `merge_timeline.py`, `compose_body.py`
+   - (estruturas prontas, retake detection calibrado quando houver footage)
+
+**Quando convergir:** plugar footage real + markers + scripts → validar pipeline completo
+no MVP Editor (com dados reais, não fixtures).
+
+---
+
+## 9. Se quiser iterar no MVP Editor antes de video-cut
+
+(Bloco separado — sessão dedicada a tweaks do editor, conforme Dayner pediu.)
+
+Abrir Claude Code dentro do projeto, iniciar sessão dizendo: "quero iterar o MVP Editor".
+Claude deve ler (nesta ordem):
+1. `HANDOFF_MVP_EDITOR.md` (este arquivo) — contexto
+2. `SINTESE_ARQUITETURAL.md` §16.5 — spec completa, decisões
+3. `tooling/editor/CLAUDE.md` — convenções locais
+4. Branch `feat/mvp-editor-visual` checked out
+5. Rodar `bash scripts/dev.sh --fixture demo` pra ver estado atual
+
+Coisas seguras pra adicionar/mudar:
+- Features aspiracionais da SINTESE 16.5 §6
+- Ajustes de UX finos (espaçamentos, cores de tokens)
+- Mais atalhos / mais filtros
+- Integrações novas (e.g. transcript sidebar)
+
+Coisas NÃO reabrir sem discussão forte:
+- As 11 decisões listadas na seção 6 acima.
+
+---
+
+## 10. Referência cruzada
 
 | Documento | Onde | Quando ler |
-|-----------|------|------------|
-| Design spec | `docs/superpowers/specs/2026-04-15-mvp-editor-visual-design.md` | Pra entender o "por que" de cada decisao |
-| Plano original | `docs/superpowers/plans/2026-04-15-mvp-editor-visual.md` | Pra ver o codigo planejado (2571 linhas) |
-| SINTESE_ARQUITETURAL.md | raiz | Pra contexto geral das 4 skills pos-roteiro |
-| CLAUDE.md do editor | `tooling/editor/CLAUDE.md` | Pra convencoes do sub-projeto |
-| CLAUDE.md raiz | `CLAUDE.md` | Pra contexto geral do niche-intelligence |
+|---|---|---|
+| Spec completa do editor | `SINTESE_ARQUITETURAL.md` §16.5 | Sempre — fonte única de verdade |
+| Spec do video-cut | `SINTESE_ARQUITETURAL.md` §16.2 | Antes de construir video-cut |
+| Sub-projeto convenções | `tooling/editor/CLAUDE.md` | Ao editar código do editor |
+| CLAUDE.md raiz | `CLAUDE.md` | Contexto geral do niche-intelligence |
+| Memory MVP Editor | `~/.claude/projects/.../memory/project_mvp_editor_built.md` | Auto-carregado em sessão |
 
 ---
 
-## 8. Estado do git
+## 11. Estado do git (snapshot)
 
-- Branch: `feat/mvp-editor-visual` (10 commits)
-- Base: `master` (commit `b0078a6`)
-- Nao mergeado em master ainda
-- Sem remote configurado (repo local only)
-- `.gitignore` atualizado com `.superpowers/` e `tooling/editor/fixtures/demo/*.mp4`
+- **Branch atual:** `feat/mvp-editor-visual`
+- **Base:** `master` (commit `b0078a6`)
+- **Commits nesta branch:** 12 (5 originais + 7 desta sessão de redesign)
+- **Status vs master:** 12 commits à frente, não mergeado
+- **Remote:** não configurado (repo local only)
+- **Untracked no root:** arquivos de pesquisa (.md), configs, data/, skills/, etc —
+  NÃO são do editor, foram deixados intencionalmente fora deste commit.
+
+Pra ver o que mudou: `git log master..feat/mvp-editor-visual --oneline`
