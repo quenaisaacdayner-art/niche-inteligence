@@ -1,0 +1,16 @@
+[
+  {
+    "id": "ovl_screencast_0",
+    "file": "screencast.mp4",
+    "track": 2,
+    "timeline_pos": 0.0,
+    "time_in": 0.0,
+    "time_out": 34.08,
+    "position": "pip",
+    "mute": true,
+    "volume": 1.0,
+    "x_pct": null,
+    "y_pct": null,
+    "width_pct": null
+  }
+]

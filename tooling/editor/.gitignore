@@ -1,5 +1,6 @@
 node_modules/
-fixtures/demo/*.mp4
+fixtures/*/*.mp4
+fixtures/*/overlays/*.mp4
 frontend/dist/
 __pycache__/
 *.pyc
