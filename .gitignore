@@ -4,3 +4,6 @@ memory/
 
 # Brainstorming visual companion session files
 .superpowers/
+
+# Editor fixture videos (generated via FFmpeg, not tracked)
+tooling/editor/fixtures/demo/*.mp4

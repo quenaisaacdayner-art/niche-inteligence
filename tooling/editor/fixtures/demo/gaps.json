@@ -1,0 +1,4 @@
+[
+  {"in": 8.0, "out": 11.5, "reason": "silence 3.5s"},
+  {"in": 18.0, "out": 22.0, "reason": "silence 4.0s"}
+]

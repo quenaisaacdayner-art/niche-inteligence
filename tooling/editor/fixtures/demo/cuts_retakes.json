@@ -1,0 +1,5 @@
+[
+  {"in": 3.2, "out": 5.8, "reason": "retake: repeated 'basicamente'", "confidence": 0.92},
+  {"in": 12.0, "out": 14.5, "reason": "retake: false start 'entao vamos...'", "confidence": 0.87},
+  {"in": 22.5, "out": 23.8, "reason": "filler: 'tipo' no meio de frase", "confidence": 0.95}
+]
