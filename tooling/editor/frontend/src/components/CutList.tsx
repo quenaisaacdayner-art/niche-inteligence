@@ -64,15 +64,7 @@ export default function CutList() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-editor-panel border-r border-editor-border">
-      {/* Panel header */}
-      <div className="panel-header">
-        <span className="flex-1">Cortes</span>
-        <span className="text-editor-text font-mono normal-case tracking-normal">
-          {visibleCuts.length}
-        </span>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Filter tabs */}
       <div className="flex gap-1 p-2 border-b border-editor-divider">
         {FILTERS.map((f) => {
