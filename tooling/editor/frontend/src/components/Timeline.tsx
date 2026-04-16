@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useMemo } from "react";
-import { useEditorStore } from "../stores/editor";
-import type { Cut } from "../types";
+import { useEditorStore, overlaysByTrack } from "../stores/editor";
+import { saveOverlays } from "../api";
+import type { Cut, Overlay } from "../types";
 import Waveform from "./Waveform";
 
 const CUT_COLORS: Record<Cut["cut_type"], { fill: string; border: string; label: string }> = {
@@ -17,6 +18,11 @@ const STATUS_OPACITY: Record<Cut["status"], string> = {
   pending: "opacity-70",
 };
 
+const TRACK_HEIGHT = 36;   // px per track
+const MASTER_HEIGHT = 40;  // px for master track
+const AUDIO_HEIGHT = 40;   // px for audio waveform track
+const RULER_HEIGHT = 24;   // px
+
 function formatTime(t: number): string {
   if (!isFinite(t)) return "0:00";
   const m = Math.floor(t / 60);
@@ -26,23 +32,31 @@ function formatTime(t: number): string {
 
 export default function Timeline() {
   const cuts = useEditorStore((s) => s.cuts);
+  const overlays = useEditorStore((s) => s.overlays);
   const currentTime = useEditorStore((s) => s.currentTime);
   const duration = useEditorStore((s) => s.duration);
   const zoom = useEditorStore((s) => s.zoom);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const selectedCutId = useEditorStore((s) => s.selectedCutId);
+  const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
+  const slug = useEditorStore((s) => s.slug);
+
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setZoom = useEditorStore((s) => s.setZoom);
   const selectCut = useEditorStore((s) => s.selectCut);
+  const selectOverlay = useEditorStore((s) => s.selectOverlay);
   const adjustCut = useEditorStore((s) => s.adjustCut);
+  const updateOverlay = useEditorStore((s) => s.updateOverlay);
+  const moveOverlay = useEditorStore((s) => s.moveOverlay);
+  const addOverlay = useEditorStore((s) => s.addOverlay);
   const splitAtPlayhead = useEditorStore((s) => s.splitAtPlayhead);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const pushToast = useEditorStore((s) => s.pushToast);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{
+  const cutDragRef = useRef<{
     cutId: string;
     edge: "left" | "right";
     startX: number;
@@ -50,16 +64,31 @@ export default function Timeline() {
     origOut: number;
   } | null>(null);
 
+  const overlayDragRef = useRef<{
+    overlayId: string;
+    kind: "move" | "trim-left" | "trim-right";
+    startX: number;
+    startY: number;
+    origPos: number;
+    origIn: number;
+    origOut: number;
+    origTrack: number;
+  } | null>(null);
+
+  const trackGroups = useMemo(() => overlaysByTrack(overlays), [overlays]);
+  // Compose tracks: always render 1 master + each used overlay track + an "add" placeholder
+  const usedTracks = trackGroups.map((g) => g.track);
+  const maxTrack = usedTracks.length > 0 ? Math.max(...usedTracks) : 1;
+  const overlayTracks: number[] = [];
+  for (let t = 2; t <= Math.max(maxTrack + 1, 3); t++) overlayTracks.push(t);
+
   const totalWidth = Math.max(duration * zoom, 200);
   const timeToX = (t: number) => t * zoom;
 
-  // Time ruler tick step
   const step = zoom > 80 ? 1 : zoom > 40 ? 5 : zoom > 20 ? 10 : 30;
   const marks = useMemo(() => {
     const arr: number[] = [];
-    if (duration > 0) {
-      for (let t = 0; t <= duration; t += step) arr.push(t);
-    }
+    if (duration > 0) for (let t = 0; t <= duration; t += step) arr.push(t);
     return arr;
   }, [duration, step]);
 
@@ -78,7 +107,7 @@ export default function Timeline() {
     }
   }, [currentTime, isPlaying, zoom]);
 
-  const handleTrackClick = useCallback(
+  const handleRulerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -100,44 +129,43 @@ export default function Timeline() {
     [zoom, setZoom]
   );
 
-  const startDrag = useCallback(
+  // --- Cut drag (trim handles) ---
+  const startCutDrag = useCallback(
     (e: React.MouseEvent, cut: Cut, edge: "left" | "right") => {
       e.stopPropagation();
       e.preventDefault();
       const inT = cut.adjusted_in ?? cut.time_in;
       const outT = cut.adjusted_out ?? cut.time_out;
-      dragRef.current = { cutId: cut.id, edge, startX: e.clientX, origIn: inT, origOut: outT };
+      cutDragRef.current = { cutId: cut.id, edge, startX: e.clientX, origIn: inT, origOut: outT };
 
       const onMove = (ev: MouseEvent) => {
-        if (!dragRef.current) return;
-        const dx = ev.clientX - dragRef.current.startX;
+        if (!cutDragRef.current) return;
+        const dx = ev.clientX - cutDragRef.current.startX;
         const dt = dx / zoom;
-        let newIn = dragRef.current.origIn;
-        let newOut = dragRef.current.origOut;
-        if (dragRef.current.edge === "left") {
-          newIn = Math.max(0, Math.min(dragRef.current.origOut - 0.1, dragRef.current.origIn + dt));
+        let newIn = cutDragRef.current.origIn;
+        let newOut = cutDragRef.current.origOut;
+        if (cutDragRef.current.edge === "left") {
+          newIn = Math.max(0, Math.min(cutDragRef.current.origOut - 0.1, cutDragRef.current.origIn + dt));
         } else {
           newOut = Math.max(
-            dragRef.current.origIn + 0.1,
-            Math.min(duration, dragRef.current.origOut + dt)
+            cutDragRef.current.origIn + 0.1,
+            Math.min(duration, cutDragRef.current.origOut + dt)
           );
         }
-        adjustCut(dragRef.current.cutId, newIn, newOut);
+        adjustCut(cutDragRef.current.cutId, newIn, newOut);
       };
-
       const onUp = () => {
-        dragRef.current = null;
+        cutDragRef.current = null;
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
       };
-
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
     [zoom, duration, adjustCut]
   );
 
-  const handleStripClick = useCallback(
+  const handleCutClick = useCallback(
     (e: React.MouseEvent, cut: Cut) => {
       e.stopPropagation();
       selectCut(cut.id);
@@ -148,35 +176,113 @@ export default function Timeline() {
     [selectCut, setCurrentTime, setIsPlaying]
   );
 
+  // --- Overlay drag (move, trim) ---
+  const persistOverlays = useCallback(
+    (next: Overlay[]) => {
+      if (!slug) return;
+      saveOverlays(slug, next).catch(() => pushToast("Erro ao salvar overlays", "error"));
+    },
+    [slug, pushToast]
+  );
+
+  const startOverlayDrag = useCallback(
+    (e: React.MouseEvent, overlay: Overlay, kind: "move" | "trim-left" | "trim-right") => {
+      e.stopPropagation();
+      e.preventDefault();
+      overlayDragRef.current = {
+        overlayId: overlay.id,
+        kind,
+        startX: e.clientX,
+        startY: e.clientY,
+        origPos: overlay.timeline_pos,
+        origIn: overlay.time_in,
+        origOut: overlay.time_out,
+        origTrack: overlay.track,
+      };
+
+      const onMove = (ev: MouseEvent) => {
+        const drag = overlayDragRef.current;
+        if (!drag) return;
+        const dx = ev.clientX - drag.startX;
+        const dy = ev.clientY - drag.startY;
+        const dt = dx / zoom;
+
+        if (drag.kind === "move") {
+          const newPos = Math.max(0, drag.origPos + dt);
+          // Vertical snap between tracks (each row = TRACK_HEIGHT)
+          const trackShift = Math.round(dy / TRACK_HEIGHT);
+          const newTrack = Math.max(2, drag.origTrack + trackShift);
+          moveOverlay(drag.overlayId, newTrack, newPos);
+        } else if (drag.kind === "trim-left") {
+          const delta = dt;
+          const newIn = Math.max(0, Math.min(drag.origOut - 0.1, drag.origIn + delta));
+          const newPos = Math.max(0, drag.origPos + (newIn - drag.origIn));
+          updateOverlay(drag.overlayId, { time_in: newIn, timeline_pos: newPos });
+        } else {
+          const newOut = Math.max(drag.origIn + 0.1, drag.origOut + dt);
+          updateOverlay(drag.overlayId, { time_out: newOut });
+        }
+      };
+      const onUp = () => {
+        overlayDragRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        // Persist
+        const fresh = useEditorStore.getState().overlays;
+        persistOverlays(fresh);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [zoom, moveOverlay, updateOverlay, persistOverlays]
+  );
+
   const handleSplit = () => {
     const newId = splitAtPlayhead();
-    if (newId) {
-      pushToast("Corte manual criado", "success");
-    } else {
-      pushToast("Posicao invalida pra corte (dentro de outro corte ou fora do video)", "error");
+    if (newId) pushToast("Corte manual criado", "success");
+    else pushToast("Posicao invalida (dentro de outro corte ou fora do video)", "error");
+  };
+
+  // --- Drop handler: overlay dragged from Bin onto a track ---
+  const handleTrackDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>, targetTrack: number) => {
+      e.preventDefault();
+      const overlayId = e.dataTransfer.getData("application/x-overlay-id");
+      if (!overlayId) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollLeft = scrollRef.current?.scrollLeft ?? 0;
+      const x = e.clientX - rect.left + scrollLeft;
+      const t = Math.max(0, x / zoom);
+      const existing = overlays.find((o) => o.id === overlayId);
+      if (!existing) return;
+      moveOverlay(overlayId, targetTrack, t);
+      const next = useEditorStore.getState().overlays;
+      persistOverlays(next);
+    },
+    [overlays, zoom, moveOverlay, persistOverlays]
+  );
+
+  const handleTrackDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes("application/x-overlay-id")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
     }
   };
 
   const playheadX = timeToX(currentTime);
 
+  const labelColWidth = 80;
+
   return (
     <div className="flex flex-col bg-editor-panel border-t border-editor-border select-none h-64">
       {/* Toolbar */}
       <div className="flex items-center gap-1 h-9 px-2 border-b border-editor-border bg-editor-panel">
-        <button
-          onClick={handleSplit}
-          className="icon-btn"
-          title="Split no playhead (S)"
-        >
+        <button onClick={handleSplit} className="icon-btn" title="Split no playhead (S)">
           <span className="text-[14px]">✂</span>
         </button>
         <div className="w-px h-5 bg-editor-border mx-1" />
-        <button onClick={undo} className="icon-btn" title="Undo (Ctrl+Z)">
-          ↩
-        </button>
-        <button onClick={redo} className="icon-btn" title="Redo (Ctrl+Shift+Z)">
-          ↪
-        </button>
+        <button onClick={undo} className="icon-btn" title="Undo (Ctrl+Z)">↩</button>
+        <button onClick={redo} className="icon-btn" title="Redo (Ctrl+Shift+Z)">↪</button>
 
         <div className="flex-1" />
 
@@ -197,15 +303,27 @@ export default function Timeline() {
       {/* Timeline body */}
       <div className="flex flex-1 min-h-0" onWheel={handleWheel}>
         {/* Track labels column */}
-        <div className="flex-shrink-0 w-20 flex flex-col border-r border-editor-border text-[10px] text-editor-muted bg-editor-panel">
-          <div className="h-6 border-b border-editor-divider" />
-          <div className="h-10 flex items-center justify-end pr-2 text-track-face border-b border-editor-divider">
-            Face
+        <div
+          className="flex-shrink-0 flex flex-col border-r border-editor-border text-[10px] text-editor-muted bg-editor-panel"
+          style={{ width: labelColWidth }}
+        >
+          <div style={{ height: RULER_HEIGHT }} className="border-b border-editor-divider" />
+          <div
+            style={{ height: MASTER_HEIGHT }}
+            className="flex items-center justify-end pr-2 text-track-screen border-b border-editor-divider font-medium"
+          >
+            Master
           </div>
-          <div className="h-10 flex items-center justify-end pr-2 text-track-screen border-b border-editor-divider">
-            Screen
-          </div>
-          <div className="h-12 flex items-center justify-end pr-2 text-track-audio">
+          {overlayTracks.map((t) => (
+            <div
+              key={t}
+              style={{ height: TRACK_HEIGHT }}
+              className="flex items-center justify-end pr-2 text-editor-muted border-b border-editor-divider"
+            >
+              Track {t}
+            </div>
+          ))}
+          <div style={{ height: AUDIO_HEIGHT }} className="flex items-center justify-end pr-2 text-track-audio">
             Audio
           </div>
         </div>
@@ -213,42 +331,25 @@ export default function Timeline() {
         {/* Scrollable tracks */}
         <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden relative">
           <div style={{ width: totalWidth, position: "relative" }}>
-            {/* Time ruler */}
+            {/* Ruler */}
             <div
-              className="h-6 border-b border-editor-divider relative overflow-hidden bg-editor-panel cursor-pointer"
-              onClick={handleTrackClick}
+              style={{ height: RULER_HEIGHT }}
+              className="border-b border-editor-divider relative overflow-hidden bg-editor-panel cursor-pointer"
+              onClick={handleRulerClick}
             >
               {marks.map((t) => (
-                <div
-                  key={t}
-                  className="absolute top-0 flex flex-col items-start"
-                  style={{ left: timeToX(t) }}
-                >
-                  <div className="w-px h-2 bg-editor-textDim" />
-                  <span className="text-[9px] text-editor-muted leading-none mt-0.5 ml-1">
-                    {formatTime(t)}
-                  </span>
+                <div key={t} className="absolute top-0 flex flex-col items-start" style={{ left: timeToX(t) }}>
+                  <div className="w-px h-2 bg-editor-dim" />
+                  <span className="text-[9px] text-editor-muted leading-none mt-0.5 ml-1">{formatTime(t)}</span>
                 </div>
               ))}
             </div>
 
-            {/* Face track */}
+            {/* Master track (cut strips overlaid) */}
             <div
-              className="h-10 border-b border-editor-divider relative cursor-pointer"
-              onClick={handleTrackClick}
-            >
-              {duration > 0 && (
-                <div
-                  className="absolute top-1.5 bottom-1.5 rounded bg-track-face/10 border border-track-face/30"
-                  style={{ left: 0, width: totalWidth }}
-                />
-              )}
-            </div>
-
-            {/* Screen track */}
-            <div
-              className="h-10 border-b border-editor-divider relative cursor-pointer"
-              onClick={handleTrackClick}
+              style={{ height: MASTER_HEIGHT }}
+              className="border-b border-editor-divider relative cursor-pointer"
+              onClick={handleRulerClick}
             >
               {duration > 0 && (
                 <div
@@ -256,21 +357,7 @@ export default function Timeline() {
                   style={{ left: 0, width: totalWidth }}
                 />
               )}
-            </div>
-
-            {/* Audio track with waveform */}
-            <div className="h-12 relative cursor-pointer" onClick={handleTrackClick}>
-              <Waveform zoom={zoom} />
-            </div>
-
-            {/* Cut strips — overlay spanning face + screen + audio tracks */}
-            <div
-              className="absolute left-0 right-0 pointer-events-none"
-              style={{
-                top: 24, // below ruler
-                height: 32 /* face */ + 32 /* unused gap */ + 40 /* audio */,
-              }}
-            >
+              {/* Cut strips */}
               {cuts.map((cut) => {
                 const inT = cut.adjusted_in ?? cut.time_in;
                 const outT = cut.adjusted_out ?? cut.time_out;
@@ -279,59 +366,113 @@ export default function Timeline() {
                 const isSelected = cut.id === selectedCutId;
                 const colors = CUT_COLORS[cut.cut_type];
                 const opacity = STATUS_OPACITY[cut.status];
-
                 return (
                   <div
                     key={cut.id}
                     className={[
-                      "absolute top-0 bottom-0 rounded border-l-2 border-r-2 cursor-pointer pointer-events-auto transition-opacity",
+                      "absolute top-0.5 bottom-0.5 rounded border-l-2 border-r-2 cursor-pointer transition-opacity",
                       colors.fill,
                       colors.border,
                       opacity,
                       isSelected ? "ring-2 ring-accent" : "",
                     ].join(" ")}
                     style={{ left: x, width: w }}
-                    onClick={(e) => handleStripClick(e, cut)}
+                    onClick={(e) => handleCutClick(e, cut)}
                     title={`${cut.cut_type} [${formatTime(inT)}-${formatTime(outT)}] ${cut.status}`}
                   >
-                    {/* Left trim handle */}
                     <div
                       className="absolute left-0 top-0 bottom-0 w-2 -ml-1 cursor-ew-resize hover:bg-white/30 z-10"
-                      onMouseDown={(e) => startDrag(e, cut, "left")}
+                      onMouseDown={(e) => startCutDrag(e, cut, "left")}
                     />
-                    {/* Type badge */}
                     {w > 18 && (
-                      <span className="absolute top-1 left-1.5 text-[9px] font-bold text-white/90 pointer-events-none">
+                      <span className="absolute top-0.5 left-1.5 text-[9px] font-bold text-white/90 pointer-events-none">
                         {colors.label}
                       </span>
                     )}
-                    {/* Status glyph */}
                     {w > 30 && (cut.status === "approved" || cut.status === "adjusted") && (
-                      <span className="absolute bottom-1 right-1.5 text-[10px] text-cut-approved pointer-events-none">
+                      <span className="absolute bottom-0.5 right-1.5 text-[10px] text-cut-approved pointer-events-none">
                         ✓
                       </span>
                     )}
-                    {w > 30 && cut.status === "rejected" && (
-                      <span className="absolute bottom-1 right-1.5 text-[10px] text-editor-muted pointer-events-none">
-                        ✗
-                      </span>
-                    )}
-                    {/* Right trim handle */}
                     <div
                       className="absolute right-0 top-0 bottom-0 w-2 -mr-1 cursor-ew-resize hover:bg-white/30 z-10"
-                      onMouseDown={(e) => startDrag(e, cut, "right")}
+                      onMouseDown={(e) => startCutDrag(e, cut, "right")}
                     />
                   </div>
                 );
               })}
             </div>
 
-            {/* Playhead — spans all tracks */}
+            {/* Overlay tracks — each track is a drop zone for overlay clips */}
+            {overlayTracks.map((trackIdx) => {
+              const group = trackGroups.find((g) => g.track === trackIdx);
+              const trackOverlays = group?.overlays ?? [];
+              return (
+                <div
+                  key={`track-${trackIdx}`}
+                  style={{ height: TRACK_HEIGHT }}
+                  className="border-b border-editor-divider relative"
+                  onDrop={(e) => handleTrackDrop(e, trackIdx)}
+                  onDragOver={handleTrackDragOver}
+                  onClick={handleRulerClick}
+                >
+                  <div
+                    className="absolute top-1 bottom-1 rounded bg-editor-elevated/20 border border-editor-border/20"
+                    style={{ left: 0, width: totalWidth }}
+                  />
+                  {trackOverlays.map((ov) => {
+                    const dur = ov.time_out - ov.time_in;
+                    const x = timeToX(ov.timeline_pos);
+                    const w = Math.max(8, timeToX(dur));
+                    const isSelected = ov.id === selectedOverlayId;
+                    return (
+                      <div
+                        key={ov.id}
+                        style={{ left: x, width: w }}
+                        className={`absolute top-0.5 bottom-0.5 rounded border border-cut-manual bg-cut-manual/30 cursor-move transition-all ${
+                          isSelected ? "ring-2 ring-accent" : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectOverlay(ov.id);
+                        }}
+                        onMouseDown={(e) => startOverlayDrag(e, ov, "move")}
+                        title={`${ov.file} [${formatTime(ov.timeline_pos)}] · ${dur.toFixed(2)}s`}
+                      >
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-2 -ml-1 cursor-ew-resize hover:bg-white/30 z-10"
+                          onMouseDown={(e) => startOverlayDrag(e, ov, "trim-left")}
+                        />
+                        {w > 50 && (
+                          <span className="absolute inset-0 flex items-center px-2 text-[10px] text-white/90 truncate pointer-events-none">
+                            {ov.file}
+                          </span>
+                        )}
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-2 -mr-1 cursor-ew-resize hover:bg-white/30 z-10"
+                          onMouseDown={(e) => startOverlayDrag(e, ov, "trim-right")}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {/* Audio waveform */}
+            <div
+              style={{ height: AUDIO_HEIGHT }}
+              className="relative cursor-pointer"
+              onClick={handleRulerClick}
+            >
+              <Waveform zoom={zoom} />
+            </div>
+
+            {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
               style={{ left: playheadX }}
             >
-              {/* Playhead handle at top */}
               <div className="absolute -top-0.5 -left-1 w-2 h-2 bg-white rotate-45" />
             </div>
           </div>
@@ -350,9 +491,9 @@ export default function Timeline() {
           <span className="w-2 h-2 rounded-sm bg-cut-filler/60" />filler
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-cut-manual/60" />manual
+          <span className="w-2 h-2 rounded-sm bg-cut-manual/60" />clip
         </span>
-        <span className="ml-auto">Ctrl+scroll: zoom · S: split · P: preview · A/R: aprovar/rejeitar</span>
+        <span className="ml-auto">Ctrl+scroll: zoom · S: split · P: preview · A/R: aprovar/rejeitar · drag clip: mover</span>
       </div>
     </div>
   );

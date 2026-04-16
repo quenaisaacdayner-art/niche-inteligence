@@ -20,15 +20,24 @@ const SHORTCUTS: { group: string; items: { keys: string; label: string }[] }[] =
       { keys: "A", label: "Aprovar corte selecionado" },
       { keys: "R", label: "Rejeitar corte selecionado" },
       { keys: "S", label: "Split no playhead (criar corte manual)" },
-      { keys: "Delete", label: "Remover corte manual selecionado" },
+      { keys: "Delete", label: "Remover corte manual ou overlay selecionado" },
+    ],
+  },
+  {
+    group: "Overlays / Clips",
+    items: [
+      { keys: "Drag (Bin → Track)", label: "Posicionar clip numa track" },
+      { keys: "Drag (horizontal)", label: "Mover clip no tempo" },
+      { keys: "Drag (vertical)", label: "Trocar clip de track" },
+      { keys: "Drag nas bordas", label: "Trim in/out do clip" },
     ],
   },
   {
     group: "Historico",
     items: [
-      { keys: "Ctrl+Z", label: "Desfazer" },
+      { keys: "Ctrl+Z", label: "Desfazer (cortes + overlays)" },
       { keys: "Ctrl+Shift+Z", label: "Refazer" },
-      { keys: "Ctrl+S", label: "Salvar cortes" },
+      { keys: "Ctrl+S", label: "Salvar cortes + overlays" },
     ],
   },
   {

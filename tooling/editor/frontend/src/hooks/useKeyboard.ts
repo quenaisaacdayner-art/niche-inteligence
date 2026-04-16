@@ -126,6 +126,13 @@ export function useKeyboard() {
 
         case "Delete":
         case "Backspace": {
+          // Priority: overlay selection first, else manual cut
+          if (store.selectedOverlayId) {
+            e.preventDefault();
+            store.removeOverlay(store.selectedOverlayId);
+            store.pushToast("Overlay removido (Ctrl+Z pra desfazer)", "info");
+            break;
+          }
           const sel = store.selectedCutId;
           if (!sel) return;
           const cut = store.cuts.find((c) => c.id === sel);

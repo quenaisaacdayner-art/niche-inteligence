@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useEditorStore } from "../stores/editor";
-import { saveCuts, startCompose, checkCompose } from "../api";
+import { saveCuts, saveOverlays, startCompose, checkCompose } from "../api";
 
 export default function Header() {
   const slug = useEditorStore((s) => s.slug);
   const cuts = useEditorStore((s) => s.cuts);
+  const overlays = useEditorStore((s) => s.overlays);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const undoStack = useEditorStore((s) => s.undoStack);
@@ -24,10 +25,10 @@ export default function Header() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveCuts(slug, cuts);
-      pushToast("Cortes salvos", "success");
+      await Promise.all([saveCuts(slug, cuts), saveOverlays(slug, overlays)]);
+      pushToast("Cortes + overlays salvos", "success");
     } catch {
-      pushToast("Erro ao salvar cortes", "error");
+      pushToast("Erro ao salvar", "error");
     } finally {
       setSaving(false);
     }
@@ -36,7 +37,7 @@ export default function Header() {
   const handleCompose = async () => {
     setComposing(true);
     try {
-      await saveCuts(slug, cuts);
+      await Promise.all([saveCuts(slug, cuts), saveOverlays(slug, overlays)]);
       const jobId = await startCompose(slug);
       pushToast("Compondo body.mp4...", "info");
       const poll = setInterval(async () => {
@@ -70,7 +71,7 @@ export default function Header() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [cuts, slug]);
+  }, [cuts, overlays, slug]);
 
   return (
     <header className="flex items-center h-12 px-4 bg-editor-panel border-b border-editor-border">
