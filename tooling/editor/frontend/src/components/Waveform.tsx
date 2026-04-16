@@ -9,28 +9,30 @@ interface Props {
 }
 
 export default function Waveform({ zoom }: Props) {
-  const slug = useEditorStore((s) => s.slug);
+  const projectInfo = useEditorStore((s) => s.projectInfo);
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
 
+  const masterFile = projectInfo?.master?.file ?? null;
+
   useEffect(() => {
-    if (!containerRef.current || !slug) return;
+    if (!containerRef.current || !masterFile) return;
 
     const ws = WaveSurfer.create({
       container: containerRef.current,
       waveColor: "#00bcd466",
       progressColor: "#00bcd4",
-      cursorColor: "transparent", // we draw our own playhead in Timeline
+      cursorColor: "transparent",
       cursorWidth: 0,
       height: 40,
       barWidth: 2,
       barGap: 1,
       barRadius: 0,
       normalize: true,
-      interact: false, // clicks handled by Timeline track
+      interact: false,
       minPxPerSec: zoom,
       fillParent: false,
-      url: mediaUrl(slug, "face_clean.mp4"),
+      url: mediaUrl(masterFile),
       backend: "MediaElement",
     });
 
@@ -39,9 +41,8 @@ export default function Waveform({ zoom }: Props) {
       ws.destroy();
       wsRef.current = null;
     };
-  }, [slug]);
+  }, [masterFile]);
 
-  // Update minPxPerSec when zoom changes
   useEffect(() => {
     if (!wsRef.current) return;
     try {
