@@ -2,7 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #15161a;
+  color: #e4e4e7;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbars — subtle, dark */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 #0a0a0a;
+  scrollbar-color: #2a2b35 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a2b35;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a3b45;
+}
+
+/* Remove default focus outlines — we use accent rings instead */
+button:focus,
+input:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* Video elements don't need default chrome */
+video {
+  display: block;
+}
+
+/* Animations */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Utility class for panel headers (CapCut tabs look) */
+@layer components {
+  .panel-header {
+    @apply flex items-center px-3 h-9 border-b border-editor-border bg-editor-panel text-editor-textMuted text-[11px] uppercase tracking-wider;
+  }
+  .icon-btn {
+    @apply inline-flex items-center justify-center w-7 h-7 rounded text-editor-textMuted hover:text-editor-text hover:bg-editor-elevated transition-colors disabled:opacity-30 disabled:cursor-not-allowed;
+  }
+  .accent-btn {
+    @apply inline-flex items-center gap-1.5 px-3 h-7 rounded bg-accent text-white text-[11px] font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .ghost-btn {
+    @apply inline-flex items-center gap-1.5 px-3 h-7 rounded border border-editor-border text-editor-text text-[11px] hover:bg-editor-elevated transition-colors disabled:opacity-30 disabled:cursor-not-allowed;
+  }
 }

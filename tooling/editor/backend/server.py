@@ -16,6 +16,9 @@ from services import (
     get_project_info,
     append_correction,
     get_fixture_dir,
+    compute_keep_segments,
+    build_compose_ffmpeg_args,
+    probe_duration,
 )
 
 
@@ -152,7 +155,7 @@ def api_post_correction(slug: str, correction: Correction):
 
 @app.post("/api/compose/{slug}")
 async def api_compose(slug: str):
-    """Dispatch FFmpeg compose as background task."""
+    """Apply approved cuts to face_clean.mp4 via FFmpeg filter_complex."""
     job_id = str(uuid.uuid4())[:8]
     compose_jobs[job_id] = ComposeJob(job_id=job_id, status="running")
 
@@ -167,20 +170,33 @@ async def api_compose(slug: str):
                 compose_jobs[job_id].error = "face_clean.mp4 not found"
                 return
 
+            # Load current cuts + compute keep segments
+            cuts = load_cuts(slug)
+            duration = await probe_duration(face_path)
+            if duration <= 0:
+                compose_jobs[job_id].status = "error"
+                compose_jobs[job_id].error = "Could not probe video duration"
+                return
+
+            keep_segments = compute_keep_segments(cuts, duration)
+
+            args = build_compose_ffmpeg_args(face_path, body_path, keep_segments)
+
             proc = await asyncio.create_subprocess_exec(
-                "ffmpeg", "-y", "-i", str(face_path),
-                "-c", "copy", str(body_path),
+                *args,
                 stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
             )
-            await proc.wait()
+            _, stderr = await proc.communicate()
 
             if proc.returncode == 0:
                 compose_jobs[job_id].status = "done"
+                compose_jobs[job_id].output_path = str(body_path)
                 await manager.notify(slug, {"type": "compose_done"})
             else:
                 compose_jobs[job_id].status = "error"
-                compose_jobs[job_id].error = f"FFmpeg exit code {proc.returncode}"
+                tail = stderr.decode("utf-8", errors="replace")[-500:] if stderr else ""
+                compose_jobs[job_id].error = f"FFmpeg exit {proc.returncode}: {tail}"
         except Exception as e:
             compose_jobs[job_id].status = "error"
             compose_jobs[job_id].error = str(e)

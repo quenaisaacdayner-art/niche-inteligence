@@ -1,21 +1,24 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect, useMemo } from "react";
 import { useEditorStore } from "../stores/editor";
 import type { Cut } from "../types";
+import Waveform from "./Waveform";
 
-const CUT_COLORS: Record<Cut["cut_type"], string> = {
-  retake: "bg-cut-retake/40 border-cut-retake",
-  gap: "bg-cut-gap/40 border-cut-gap",
-  filler: "bg-cut-filler/40 border-cut-filler",
+const CUT_COLORS: Record<Cut["cut_type"], { fill: string; border: string; label: string }> = {
+  retake: { fill: "bg-cut-retake/30", border: "border-cut-retake", label: "R" },
+  gap: { fill: "bg-cut-gap/30", border: "border-cut-gap", label: "G" },
+  filler: { fill: "bg-cut-filler/30", border: "border-cut-filler", label: "F" },
+  manual: { fill: "bg-cut-manual/30", border: "border-cut-manual", label: "M" },
 };
 
-const STATUS_RING: Record<Cut["status"], string> = {
-  approved: "ring-1 ring-cut-approved",
-  rejected: "ring-1 ring-cut-rejected opacity-40",
-  adjusted: "ring-1 ring-yellow-400",
-  pending: "",
+const STATUS_OPACITY: Record<Cut["status"], string> = {
+  approved: "opacity-100",
+  adjusted: "opacity-100",
+  rejected: "opacity-25",
+  pending: "opacity-70",
 };
 
 function formatTime(t: number): string {
+  if (!isFinite(t)) return "0:00";
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
@@ -26,12 +29,17 @@ export default function Timeline() {
   const currentTime = useEditorStore((s) => s.currentTime);
   const duration = useEditorStore((s) => s.duration);
   const zoom = useEditorStore((s) => s.zoom);
+  const isPlaying = useEditorStore((s) => s.isPlaying);
   const selectedCutId = useEditorStore((s) => s.selectedCutId);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setZoom = useEditorStore((s) => s.setZoom);
   const selectCut = useEditorStore((s) => s.selectCut);
   const adjustCut = useEditorStore((s) => s.adjustCut);
+  const splitAtPlayhead = useEditorStore((s) => s.splitAtPlayhead);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  const pushToast = useEditorStore((s) => s.pushToast);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -45,20 +53,35 @@ export default function Timeline() {
   const totalWidth = Math.max(duration * zoom, 200);
   const timeToX = (t: number) => t * zoom;
 
-  // Time ruler step
-  const step = zoom > 80 ? 1 : zoom > 40 ? 5 : 10;
-  const marks: number[] = [];
-  if (duration > 0) {
-    for (let t = 0; t <= duration; t += step) {
-      marks.push(t);
+  // Time ruler tick step
+  const step = zoom > 80 ? 1 : zoom > 40 ? 5 : zoom > 20 ? 10 : 30;
+  const marks = useMemo(() => {
+    const arr: number[] = [];
+    if (duration > 0) {
+      for (let t = 0; t <= duration; t += step) arr.push(t);
     }
-  }
+    return arr;
+  }, [duration, step]);
 
-  const handleScrollAreaClick = useCallback(
+  // Auto-scroll: keep playhead in view during playback
+  useEffect(() => {
+    if (!isPlaying || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const playheadX = currentTime * zoom;
+    const viewLeft = container.scrollLeft;
+    const viewRight = viewLeft + container.clientWidth;
+    const margin = 80;
+    if (playheadX < viewLeft + margin) {
+      container.scrollLeft = Math.max(0, playheadX - margin);
+    } else if (playheadX > viewRight - margin) {
+      container.scrollLeft = playheadX - container.clientWidth + margin;
+    }
+  }, [currentTime, isPlaying, zoom]);
+
+  const handleTrackClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only seek on direct click (not drag or strip click)
       const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-      const x = e.clientX - rect.left + (scrollRef.current?.scrollLeft ?? 0);
+      const x = e.clientX - rect.left;
       const t = Math.max(0, Math.min(duration, x / zoom));
       setCurrentTime(t);
       setIsPlaying(false);
@@ -78,22 +101,12 @@ export default function Timeline() {
   );
 
   const startDrag = useCallback(
-    (
-      e: React.MouseEvent,
-      cut: Cut,
-      edge: "left" | "right"
-    ) => {
+    (e: React.MouseEvent, cut: Cut, edge: "left" | "right") => {
       e.stopPropagation();
       e.preventDefault();
       const inT = cut.adjusted_in ?? cut.time_in;
       const outT = cut.adjusted_out ?? cut.time_out;
-      dragRef.current = {
-        cutId: cut.id,
-        edge,
-        startX: e.clientX,
-        origIn: inT,
-        origOut: outT,
-      };
+      dragRef.current = { cutId: cut.id, edge, startX: e.clientX, origIn: inT, origOut: outT };
 
       const onMove = (ev: MouseEvent) => {
         if (!dragRef.current) return;
@@ -104,7 +117,10 @@ export default function Timeline() {
         if (dragRef.current.edge === "left") {
           newIn = Math.max(0, Math.min(dragRef.current.origOut - 0.1, dragRef.current.origIn + dt));
         } else {
-          newOut = Math.max(dragRef.current.origIn + 0.1, Math.min(duration, dragRef.current.origOut + dt));
+          newOut = Math.max(
+            dragRef.current.origIn + 0.1,
+            Math.min(duration, dragRef.current.origOut + dt)
+          );
         }
         adjustCut(dragRef.current.cutId, newIn, newOut);
       };
@@ -132,101 +148,128 @@ export default function Timeline() {
     [selectCut, setCurrentTime, setIsPlaying]
   );
 
+  const handleSplit = () => {
+    const newId = splitAtPlayhead();
+    if (newId) {
+      pushToast("Corte manual criado", "success");
+    } else {
+      pushToast("Posicao invalida pra corte (dentro de outro corte ou fora do video)", "error");
+    }
+  };
+
   const playheadX = timeToX(currentTime);
 
   return (
-    <div className="flex flex-col bg-editor-bg select-none" onWheel={handleWheel}>
-      {/* Track rows */}
-      <div className="flex text-[9px] text-gray-400">
-        {/* Left labels column */}
-        <div className="flex-shrink-0 w-14 flex flex-col border-r border-editor-border">
-          {/* Ruler label */}
-          <div className="h-5 border-b border-editor-border" />
-          {/* Face label */}
-          <div className="h-5 flex items-center justify-end pr-1 text-track-face border-b border-editor-border">
+    <div className="flex flex-col bg-editor-panel border-t border-editor-border select-none h-64">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 h-9 px-2 border-b border-editor-border bg-editor-panel">
+        <button
+          onClick={handleSplit}
+          className="icon-btn"
+          title="Split no playhead (S)"
+        >
+          <span className="text-[14px]">✂</span>
+        </button>
+        <div className="w-px h-5 bg-editor-border mx-1" />
+        <button onClick={undo} className="icon-btn" title="Undo (Ctrl+Z)">
+          ↩
+        </button>
+        <button onClick={redo} className="icon-btn" title="Redo (Ctrl+Shift+Z)">
+          ↪
+        </button>
+
+        <div className="flex-1" />
+
+        <div className="flex items-center gap-2 text-editor-textMuted text-[10px]">
+          <span>Zoom</span>
+          <input
+            type="range"
+            min={10}
+            max={200}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="w-32 accent-accent"
+          />
+          <span className="font-mono w-10 text-right text-editor-text">{zoom}px/s</span>
+        </div>
+      </div>
+
+      {/* Timeline body */}
+      <div className="flex flex-1 min-h-0" onWheel={handleWheel}>
+        {/* Track labels column */}
+        <div className="flex-shrink-0 w-20 flex flex-col border-r border-editor-border text-[10px] text-editor-textMuted bg-editor-panel">
+          <div className="h-6 border-b border-editor-borderMuted" />
+          <div className="h-10 flex items-center justify-end pr-2 text-track-face border-b border-editor-borderMuted">
             Face
           </div>
-          {/* Screen label */}
-          <div className="h-5 flex items-center justify-end pr-1 text-track-screen border-b border-editor-border">
+          <div className="h-10 flex items-center justify-end pr-2 text-track-screen border-b border-editor-borderMuted">
             Screen
           </div>
-          {/* Cuts label */}
-          <div className="h-8 flex items-center justify-end pr-1 border-b border-editor-border">
-            Cortes
+          <div className="h-12 flex items-center justify-end pr-2 text-track-audio">
+            Audio
           </div>
         </div>
 
-        {/* Scrollable area */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-x-auto overflow-y-hidden"
-          style={{ position: "relative" }}
-        >
+        {/* Scrollable tracks */}
+        <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden relative">
           <div style={{ width: totalWidth, position: "relative" }}>
             {/* Time ruler */}
             <div
-              className="h-5 border-b border-editor-border relative overflow-hidden"
-              onClick={handleScrollAreaClick}
-              style={{ cursor: "pointer" }}
+              className="h-6 border-b border-editor-borderMuted relative overflow-hidden bg-editor-panel cursor-pointer"
+              onClick={handleTrackClick}
             >
               {marks.map((t) => (
                 <div
                   key={t}
-                  className="absolute top-0 flex flex-col items-center"
+                  className="absolute top-0 flex flex-col items-start"
                   style={{ left: timeToX(t) }}
                 >
-                  <div className="w-px h-2 bg-gray-600" />
-                  <span className="text-[8px] text-gray-500 leading-none mt-px">{formatTime(t)}</span>
+                  <div className="w-px h-2 bg-editor-textDim" />
+                  <span className="text-[9px] text-editor-textMuted leading-none mt-0.5 ml-1">
+                    {formatTime(t)}
+                  </span>
                 </div>
               ))}
-              {/* Playhead marker in ruler */}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                style={{ left: playheadX }}
-              />
             </div>
 
-            {/* Face track bar */}
+            {/* Face track */}
             <div
-              className="h-5 border-b border-editor-border relative"
-              onClick={handleScrollAreaClick}
-              style={{ cursor: "pointer" }}
+              className="h-10 border-b border-editor-borderMuted relative cursor-pointer"
+              onClick={handleTrackClick}
             >
               {duration > 0 && (
                 <div
-                  className="absolute top-1 bottom-1 rounded-sm bg-track-face/20 border border-track-face/40"
+                  className="absolute top-1.5 bottom-1.5 rounded bg-track-face/10 border border-track-face/30"
                   style={{ left: 0, width: totalWidth }}
                 />
               )}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                style={{ left: playheadX }}
-              />
             </div>
 
-            {/* Screen track bar */}
+            {/* Screen track */}
             <div
-              className="h-5 border-b border-editor-border relative"
-              onClick={handleScrollAreaClick}
-              style={{ cursor: "pointer" }}
+              className="h-10 border-b border-editor-borderMuted relative cursor-pointer"
+              onClick={handleTrackClick}
             >
               {duration > 0 && (
                 <div
-                  className="absolute top-1 bottom-1 rounded-sm bg-track-screen/20 border border-track-screen/40"
+                  className="absolute top-1.5 bottom-1.5 rounded bg-track-screen/10 border border-track-screen/30"
                   style={{ left: 0, width: totalWidth }}
                 />
               )}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                style={{ left: playheadX }}
-              />
             </div>
 
-            {/* Cuts strip row */}
+            {/* Audio track with waveform */}
+            <div className="h-12 relative cursor-pointer" onClick={handleTrackClick}>
+              <Waveform zoom={zoom} />
+            </div>
+
+            {/* Cut strips — overlay spanning face + screen + audio tracks */}
             <div
-              className="h-8 border-b border-editor-border relative"
-              onClick={handleScrollAreaClick}
-              style={{ cursor: "pointer" }}
+              className="absolute left-0 right-0 pointer-events-none"
+              style={{
+                top: 24, // below ruler
+                height: 32 /* face */ + 32 /* unused gap */ + 40 /* audio */,
+              }}
             >
               {cuts.map((cut) => {
                 const inT = cut.adjusted_in ?? cut.time_in;
@@ -234,69 +277,82 @@ export default function Timeline() {
                 const x = timeToX(inT);
                 const w = Math.max(4, timeToX(outT) - timeToX(inT));
                 const isSelected = cut.id === selectedCutId;
+                const colors = CUT_COLORS[cut.cut_type];
+                const opacity = STATUS_OPACITY[cut.status];
+
                 return (
                   <div
                     key={cut.id}
                     className={[
-                      "absolute top-1 bottom-1 rounded border cursor-pointer",
-                      CUT_COLORS[cut.cut_type],
-                      STATUS_RING[cut.status],
-                      isSelected ? "outline outline-1 outline-white" : "",
+                      "absolute top-0 bottom-0 rounded border-l-2 border-r-2 cursor-pointer pointer-events-auto transition-opacity",
+                      colors.fill,
+                      colors.border,
+                      opacity,
+                      isSelected ? "ring-2 ring-accent" : "",
                     ].join(" ")}
                     style={{ left: x, width: w }}
                     onClick={(e) => handleStripClick(e, cut)}
-                    title={`${cut.cut_type} [${formatTime(inT)}–${formatTime(outT)}] ${cut.status}`}
+                    title={`${cut.cut_type} [${formatTime(inT)}-${formatTime(outT)}] ${cut.status}`}
                   >
-                    {/* Left drag handle */}
+                    {/* Left trim handle */}
                     <div
-                      className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/20 z-10"
+                      className="absolute left-0 top-0 bottom-0 w-2 -ml-1 cursor-ew-resize hover:bg-white/30 z-10"
                       onMouseDown={(e) => startDrag(e, cut, "left")}
                     />
-                    {/* Label (only if wide enough) */}
-                    {w > 20 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[7px] font-medium text-white/70 pointer-events-none truncate px-1">
-                        {cut.cut_type[0].toUpperCase()}
+                    {/* Type badge */}
+                    {w > 18 && (
+                      <span className="absolute top-1 left-1.5 text-[9px] font-bold text-white/90 pointer-events-none">
+                        {colors.label}
                       </span>
                     )}
-                    {/* Right drag handle */}
+                    {/* Status glyph */}
+                    {w > 30 && (cut.status === "approved" || cut.status === "adjusted") && (
+                      <span className="absolute bottom-1 right-1.5 text-[10px] text-cut-approved pointer-events-none">
+                        ✓
+                      </span>
+                    )}
+                    {w > 30 && cut.status === "rejected" && (
+                      <span className="absolute bottom-1 right-1.5 text-[10px] text-editor-textMuted pointer-events-none">
+                        ✗
+                      </span>
+                    )}
+                    {/* Right trim handle */}
                     <div
-                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/20 z-10"
+                      className="absolute right-0 top-0 bottom-0 w-2 -mr-1 cursor-ew-resize hover:bg-white/30 z-10"
                       onMouseDown={(e) => startDrag(e, cut, "right")}
                     />
                   </div>
                 );
               })}
-              {/* Playhead */}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                style={{ left: playheadX }}
-              />
+            </div>
+
+            {/* Playhead — spans all tracks */}
+            <div
+              className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
+              style={{ left: playheadX }}
+            >
+              {/* Playhead handle at top */}
+              <div className="absolute -top-0.5 -left-1 w-2 h-2 bg-white rotate-45" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Legend row */}
-      <div className="flex items-center gap-3 px-2 py-0.5 text-[8px] text-gray-500 border-t border-editor-border">
+      {/* Legend footer */}
+      <div className="flex items-center gap-3 px-3 h-6 border-t border-editor-border text-[9px] text-editor-textMuted bg-editor-panel">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-sm bg-cut-retake/60" />retake
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-cut-gap/60" />gap
+          <span className="w-2 h-2 rounded-sm bg-cut-gap/60" />silencio
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-sm bg-cut-filler/60" />filler
         </span>
-        <span className="ml-2 flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm ring-1 ring-cut-approved" />approved
-        </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm ring-1 ring-cut-rejected opacity-60" />rejected
+          <span className="w-2 h-2 rounded-sm bg-cut-manual/60" />manual
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm ring-1 ring-yellow-400" />adjusted
-        </span>
-        <span className="ml-auto">Ctrl+scroll zoom</span>
+        <span className="ml-auto">Ctrl+scroll: zoom · S: split · P: preview · A/R: aprovar/rejeitar</span>
       </div>
     </div>
   );

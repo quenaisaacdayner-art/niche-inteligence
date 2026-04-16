@@ -4,7 +4,7 @@ from typing import Optional
 
 class Cut(BaseModel):
     id: str
-    cut_type: str  # retake | gap | filler
+    cut_type: str  # retake | gap | filler | manual
     time_in: float
     time_out: float
     reason: str
@@ -13,6 +13,7 @@ class Cut(BaseModel):
     adjusted_in: Optional[float] = None
     adjusted_out: Optional[float] = None
     dayner_note: Optional[str] = None
+    source: Optional[str] = None  # face | screen | both (default both when None)
 
 
 class Correction(BaseModel):
@@ -23,7 +24,7 @@ class Correction(BaseModel):
     time_out: float
     claude_reason: str
     transcript_context: str = ""
-    action: str  # approved | rejected | adjusted
+    action: str  # approved | rejected | adjusted | manual | deleted
     adjusted_in: Optional[float] = None
     adjusted_out: Optional[float] = None
     dayner_note: Optional[str] = None
@@ -37,3 +38,4 @@ class ComposeJob(BaseModel):
     job_id: str
     status: str = "running"  # running | done | error
     error: Optional[str] = None
+    output_path: Optional[str] = None

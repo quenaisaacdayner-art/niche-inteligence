@@ -1,5 +1,12 @@
 # HANDOFF — MVP Editor Visual (sessao 2026-04-15)
 
+> **ATUALIZADO 2026-04-16:** Sessao de aprofundamento concluida com Dayner.
+> Redesign completo definido em `SINTESE_ARQUITETURAL.md` secao 16.5 (agora
+> APROFUNDADA). Layout 4 zonas CapCut-style, virtual cut como mecanica central,
+> tema dark navy + teal accent. **A lista de gaps abaixo (secao 3) foi SUBSTITUIDA
+> pela feature prioritization da secao 16.5.** Usar 16.5 como fonte de verdade
+> pra construcao, nao este handoff.
+
 > **Proposito:** Documento de handoff pra proxima sessao continuar o trabalho no
 > MVP Editor Visual. Le este arquivo PRIMEIRO antes de qualquer acao.
 
