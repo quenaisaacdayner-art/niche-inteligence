@@ -22,7 +22,7 @@ def _load_model(name: str, device: str):
 def _transcribe_call(model, audio) -> dict:
     import whisper_timestamped as whisper
 
-    return whisper.transcribe(model, audio, vad="auto", language="pt")
+    return whisper.transcribe(model, audio, vad="silero", language="pt")
 
 
 def transcribe_audio(master_path: str) -> dict:
