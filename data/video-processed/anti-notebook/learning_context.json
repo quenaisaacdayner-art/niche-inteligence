@@ -1,0 +1,15 @@
+{
+  "applied_rules": [
+    {
+      "rule_key": "retake::retake_repeated_basicamente",
+      "samples": 5,
+      "approved_rate": 0.8,
+      "description": "retake: repeated 'basicamente'"
+    }
+  ],
+  "disabled_rules": [],
+  "neutral_rules": [],
+  "total_samples": 19,
+  "min_samples_for_rule": 5,
+  "generated_at": "2026-04-17T02:43:30"
+}

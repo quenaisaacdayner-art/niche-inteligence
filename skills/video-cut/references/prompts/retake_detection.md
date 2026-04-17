@@ -7,7 +7,8 @@ Ler `_video_cut_principles.md` primeiro.
 Caminhos relativos a `data/video-processed/{slug}/`:
 
 - `transcripts/master.words.json` — whisper-timestamped word-level
-  (`{text, segments: [{start, end, text, words: [{word, start, end, confidence}]}]}`)
+  (`{text, segments: [{start, end, text, words: [{text, start, end, confidence}]}]}`).
+  Cada word tem chave `text` (NAO `word`), exemplo: `{"text": "Ok,", "start": 8.97, "end": 9.39, "confidence": 0.36}`.
 - `learning_context.json` — regras agregadas de `memory/video-cut-corrections.jsonl`
   (`applied_rules`, `disabled_rules`, `neutral_rules`, `total_samples`,
   `min_samples_for_rule`)

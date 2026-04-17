@@ -7,3 +7,8 @@ memory/
 
 # Editor fixture videos (generated via FFmpeg, not tracked)
 tooling/editor/fixtures/demo/*.mp4
+
+# video-cut: raw master files (too big for git; user copies/symlinks)
+data/video-raw/**/master.mp4
+# video-cut: composed body.mp4 (output of editor, not tracked)
+data/video-processed/**/body.mp4

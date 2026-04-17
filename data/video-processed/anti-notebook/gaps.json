@@ -1,0 +1,50 @@
+[
+  {
+    "in": 4.216271,
+    "out": 9.07625,
+    "type": "silence",
+    "duration": 4.859979
+  },
+  {
+    "in": 65.129292,
+    "out": 68.652646,
+    "type": "silence",
+    "duration": 3.523354
+  },
+  {
+    "in": 70.197187,
+    "out": 73.382417,
+    "type": "silence",
+    "duration": 3.185229
+  },
+  {
+    "in": 81.523604,
+    "out": 86.043792,
+    "type": "silence",
+    "duration": 4.520187
+  },
+  {
+    "in": 123.085542,
+    "out": 126.139271,
+    "type": "silence",
+    "duration": 3.053729
+  },
+  {
+    "in": 126.139292,
+    "out": 133.732708,
+    "type": "silence",
+    "duration": 7.593417
+  },
+  {
+    "in": 155.738625,
+    "out": 160.102417,
+    "type": "silence",
+    "duration": 4.363792
+  },
+  {
+    "in": 170.452,
+    "out": 178.156854,
+    "type": "silence",
+    "duration": 7.704854
+  }
+]
