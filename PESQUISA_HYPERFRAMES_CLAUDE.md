@@ -4,10 +4,10 @@
 **Janela:** ultimos 30 dias (2026-03-19 -> 2026-04-18)
 
 ## Status da pesquisa
-em andamento (fase final)
+completa
 
 ## TL;DR
-(preencher no fim)
+HyperFrames (heygen-com/hyperframes, v0.4.3, lancado ~1 mes atras, 2.8k stars) **e genuinamente agent-first** — shipa 3 slash commands nativas pro Claude Code (`/hyperframes`, `/hyperframes-cli`, `/gsap`) e o proprio launch video da HeyGen foi feito com ele. Porem, em 2026-04-18 **nao existe um unico case study publico de criador de conteudo independente** que tenha substituido Remotion por HyperFrames em producao de YouTube. Bugs criticos (audio double-play, font 404, Chromium 147 quebrando o engine default) foram merged na propria semana do launch, indicando framework ainda endurecendo. A referencia canonica "Claude Code + video em uma tarde" (Tim McAllister, Medium) usa **Remotion**. Recomendacao: manter Remotion no MVP de `video-overlays`, abrir ADR "reavaliar em Q3/2026" pos-v0.5 + 3-5 case studies publicos.
 
 ## Casos encontrados
 
@@ -79,24 +79,60 @@ em andamento (fase final)
 - Friccoes: nao documentadas em hypes de launch.
 
 ## Friccoes tecnicas recorrentes
-(pendente)
+
+1. **Chromium modernos quebram o engine default.** Issue #294 mostra que Chromium 147 removeu `HeadlessExperimental.beginFrame` — o protocol que o capture engine usa. Fix upstream mudou o default pra screenshot mode, mas quem esta em stacks "exoticas" (ARM64, containers custom, WSL com Chromium system-wide) vai bater nisso ate atualizar pra >= 0.4.3.
+2. **Skill nao auto-carrega no Claude Code.** Docs oficiais avisam: "restart session after installing" e "always prefix HyperFrames prompts with /hyperframes to load the skill context explicitly". Ou seja, nao e plug-and-play — sem o prefixo a skill nao entra no contexto.
+3. **PRs de bug heavy no launch week.** Entre 2026-04-16 e 2026-04-18 foram merged fixes em: double-audio scaffolding (#299), single-owner audio (#298), silent-first-play (#293), font-load 404s (#313), CRF/bitrate controls (#292). Indica que o framework ainda esta endurecendo — audio, loading e encoder defaults tiveram bugs em producao no proprio launch.
+4. **Puppeteer + WSL = historico ruim.** Embora nao haja issue especifico do HyperFrames no WSL, o Puppeteer tem historico documentado de problemas em WSL (libnss3, --no-sandbox, etc). HyperFrames herda esses problemas por depender de Puppeteer.
+5. **Ausencia de case study de YouTuber usando HyperFrames em producao.** Tim McAllister, que e a referencia canonica de "afternoon video pipeline com Claude Code", usa Remotion — NAO HyperFrames. Nenhum equivalente com HyperFrames foi publicado ate 2026-04-18.
 
 ## Benchmark render time
-(pendente)
+
+**Dado oficial (do docs):** "You can create, preview, and render your first Hyperframes video in under two minutes." (Quickstart). Nao especifica duracao do video nem resolucao — provavelmente e um quickstart curto (<15s).
+
+**Dados independentes:** ZERO. Nenhum benchmark publico de render time para 1min @ 1080p@30fps foi localizado nos ultimos 30 dias. O launch video oficial tem 49.77s @ 1080p30 mas o repo nao documenta tempo total de render.
+
+**Estimativa inferencial:** como o engine e Puppeteer (captura frame a frame via CDP) + FFmpeg, render time e aproximadamente `duracao_video * N_seconds_per_frame * fps`. Para 1min@30fps = 1800 frames; se Puppeteer captura a ~10 fps (otimista em headless + compositing custoso), seriam ~3min real. Em CPU fraca (Iris Xe que o Dayner tem), mais proximo de 5-8min. Isso e **estimativa, nao benchmark publicado**.
 
 ## Comparacao com Remotion
-(pendente)
+
+| Dimensao | HyperFrames (v0.4.3) | Remotion (maduro) |
+|---|---|---|
+| Paradigma | HTML + data-attrs + GSAP | React + TSX components |
+| Agent-first | **Sim** (3 skills nativas no Claude Code) | Parcial (doc pagina dedicada a Claude Code, mas sem skills nativas) |
+| Maturidade | ~1 mes publico, v0.4.3, 2.8k stars, 5 contribs | anos de producao, ecossistema grande |
+| Dep runtime | Node 22+ + FFmpeg | Node + FFmpeg + Chromium |
+| Case studies YT | Nao encontrado | Tim McAllister, Brendan Jowett (ja no SINTESE 16.1 do projeto) |
+| Bugs criticos ativos | Sim — audio, font 404, encoder defaults (merged no launch week) | Estavel |
+| Windows/WSL | Risco (Puppeteer + Chromium 147 bugs) | Risco (mas mais workarounds documentados) |
+| Curva de aprendizado | Baixa (HTML/CSS) | Media (React) |
+| Fit com skill `/video-overlays` do projeto | Teorico alto; pratica nao validada | Ja validada na SINTESE 16.1 |
+
+**Veredicto do ecossistema (ate 2026-04-18):** Remotion ainda ganha em producao. HyperFrames ganha em "velocity agent-first" mas falta prova social e maturidade de encoder.
 
 ## Respostas as 6 perguntas criticas
-1. Alguem ja combinou HyperFrames + Claude Code publicamente?
-2. Top 3 friccoes tecnicas?
-3. Tempo de render 1 min 1080p?
-4. Casos em Windows/WSL?
-5. Comparado com Remotion — qual ganhou?
-6. Videos YouTube inteiros feitos com HyperFrames existem?
+
+1. **Alguem ja combinou HyperFrames + Claude Code publicamente?**
+   Sim, MAS quase exclusivamente o time da HeyGen (launch video) + launch marketing no X (Rohan Paul, Nelly, Misbah Syed). UM video no YouTube ("HyperFrames: HTML to MP4 AI Video Generation [92/100]"). NAO ha case study de criador de conteudo independente que gravou um video de producao real ainda.
+2. **Top 3 friccoes tecnicas?**
+   (1) Chromium 147+ quebra engine default (issue #294). (2) Skill nao auto-carrega no Claude Code, precisa prefixar `/hyperframes`. (3) Audio/font/encoder bugs merged no proprio launch week indicam framework ainda endurecendo.
+3. **Tempo de render 1 min 1080p?**
+   Nao publicado. Estimativa inferencial: 3-8 minutos em hardware medio. Quickstart promete "under 2 minutes" mas sem especificar duracao nem resolucao.
+4. **Casos em Windows/WSL?**
+   Nenhum caso especifico confirmado ate 2026-04-18. Risco herdado do Puppeteer + Chromium (historico ruim em WSL, agravado pelo bug CDP do Chromium 147).
+5. **Comparado com Remotion — qual ganhou?**
+   Misbah Syed publicou comparacao side-by-side com Opus 4.7 mas deixou em aberto. No ecossistema, **Remotion ainda vence** em maturidade, case studies publicos, e fit com stacks Windows. HyperFrames vence em "agent-first" se voce ja esta all-in em Claude Code.
+6. **Videos YouTube inteiros feitos com HyperFrames existem?**
+   UM video publico confirmado (id 09DB0Wr071U, review do framework). NAO ha canal de criador que adotou HyperFrames como pipeline primario e publicou uma serie de videos — ate 2026-04-18, cedo demais.
 
 ## Gaps da pesquisa
-(pendente)
+
+- Nao consegui fetchar Medium, X, YouTube (todos 403). Dados vem do snippet dos search engines.
+- Nao verifiquei HN item 47797513 diretamente ("Render Video from HTML via Chrome's BeginFrame API") — provavel que seja o launch HN post mas 403.
+- Sem benchmarks publicados de render time. Unica pista e "under 2 minutes" no quickstart.
+- Nao ha thread em r/ClaudeAI ou r/LocalLLaMA sobre HyperFrames ate a data desta pesquisa.
+- GitHub issue search so retornou PRs, nao issues — possivel que issues reais existam mas nao foram filtradas pela query dada.
 
 ## Recomendacao final
-(pendente)
+
+**Nao substituir Remotion por HyperFrames na skill `video-overlays` agora.** HyperFrames e promissor e genuinamente agent-first (3 skills nativas no Claude Code, HTML em vez de React reduz atrito pro Dayner), mas tem 3 red flags pra adopcao em producao YouTube hoje: (1) framework com ~1 mes publico e bugs de audio/font/encoder merged no proprio launch week; (2) ambiente ARM64 ja quebrou (issue #294) e Windows/WSL e risco documentado via Puppeteer; (3) **zero** case studies de YouTuber independente publicando video real feito com HyperFrames — a SINTESE_ARQUITETURAL 16.1 ja escolheu Remotion com base em Brendan Jowett e Tim McAllister, ambos em producao. Caminho pragmatico: manter Remotion como baseline no MVP de `video-overlays`, abrir um ADR "reavaliar HyperFrames em 2026-Q3" apos v0.5+ e 3-5 case studies publicos, e rodar um spike de 2h gerando um snippet test (ex: lower-third animado) so pra comparar DX com Claude Code inline — sem reescrever o pipeline.
